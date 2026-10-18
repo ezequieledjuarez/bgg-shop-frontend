@@ -47,3 +47,8 @@ duplicados, entradas inválidas y regresiones relevantes.
 Reporta pruebas creadas, escenarios cubiertos, comandos ejecutados, resultados,
 cobertura relevante, supuestos y limitaciones. Corrige solo errores de tests o
 fixtures directamente causados por el cambio solicitado.
+
+Al validar el frontend, ejecuta `npm run test:report`. Reporta la ruta del
+artefacto generado, `results/home-tests.json`, y resume el resultado de las
+pruebas. Este archivo es un artefacto local ignorado por Git y no debe
+versionarse.

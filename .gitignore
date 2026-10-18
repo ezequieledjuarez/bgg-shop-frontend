@@ -43,6 +43,7 @@ coverage/
 # Testing, Mocks & Types Autogenerados
 # ==========================================
 .vitest/
+results/
 .playwright/
 test-results/
 playwright-report/

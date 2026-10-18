@@ -4,9 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test": "vitest",
+    "test:report": "vitest run --reporter=json --outputFile=results/home-tests.json",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "generate:types": "openapi-typescript ../bgg-shop-bff/specs/openapi-bff.yaml -o ./src/types/generated/bff-api.d.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -16,12 +19,16 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "jsdom": "^25.0.1",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.5"
   }
 }
