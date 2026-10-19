@@ -1,0 +1,74 @@
+# ==========================================
+# Logs & Node Modules
+# ==========================================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# ==========================================
+# Build Outputs & Framework Caches (CRÍTICO)
+# ==========================================
+.next/
+out/
+.nuxt/
+.vuepress/dist
+.cache/
+.parcel-cache/
+.turbo/
+.svelte-kit/
+.astro/
+coverage/
+
+# ==========================================
+# Environment Variables & Secrets (CRÍTICO)
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+!.env.template
+
+# ==========================================
+# Testing, Mocks & Types Autogenerados
+# ==========================================
+.vitest/
+results/
+.playwright/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# ==========================================
+# Editor & OS (WSL2 / Windows / macOS)
+# ==========================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ==========================================
+# Temporary Agent / Process Artifacts
+# ==========================================
+*.tmp
+*.temp
