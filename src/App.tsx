@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import './App.css'
+import { LoginScreen, RegisterScreen } from './auth/AuthScreens';
+import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
+import './App.css';
 import type { components } from './types/generated/bff-api'
 
 type SortOrder = 'featured' | 'price-low' | 'price-high'
@@ -42,7 +44,10 @@ function ProductCard({ product }: { product: Product }) {
   )
 }
 
-function App() {
+function CatalogApp() {
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => Boolean(sessionStorage.getItem(SESSION_STORAGE_KEY)),
+  )
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -103,6 +108,19 @@ function App() {
     setSearch(searchDraft.trim())
   }
 
+  useEffect(() => {
+    const handleSessionChange = () => {
+      setIsAuthenticated(Boolean(sessionStorage.getItem(SESSION_STORAGE_KEY)))
+    }
+    window.addEventListener(SESSION_CHANGE_EVENT, handleSessionChange)
+    return () => window.removeEventListener(SESSION_CHANGE_EVENT, handleSessionChange)
+  }, [])
+
+  const handleLogout = () => {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY)
+    window.dispatchEvent(new Event(SESSION_CHANGE_EVENT))
+  }
+
   const visibleProducts = [...products]
     .sort((first, second) => {
       if (sort === 'price-low') return first.price - second.price
@@ -123,8 +141,14 @@ function App() {
           <a href="#editorial">Editoriales</a>
         </nav>
         <div className="account-actions">
-          <button type="button" className="login-button">Iniciar sesión</button>
-          <button type="button" className="register-button">Crear cuenta</button>
+          {isAuthenticated ? (
+            <button className="logout-button" type="button" onClick={handleLogout}>Cerrar sesión</button>
+          ) : (
+            <>
+              <a className="login-button" href="/login">Iniciar sesión</a>
+              <a className="main-nav-account" href="/register">Crear cuenta</a>
+            </>
+          )}
         </div>
       </header>
 
@@ -225,6 +249,25 @@ function App() {
       </footer>
     </div>
   )
+}
+
+function App() {
+  const [pathname, setPathname] = useState(window.location.pathname)
+
+  useEffect(() => {
+    const handlePopState = () => setPathname(window.location.pathname)
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const navigate = (path: string) => {
+    window.history.pushState({}, '', path)
+    setPathname(path)
+  }
+
+  if (pathname === '/login') return <LoginScreen onBack={() => navigate('/')} />
+  if (pathname === '/register') return <RegisterScreen onBack={() => navigate('/')} />
+  return <CatalogApp />
 }
 
 export default App
