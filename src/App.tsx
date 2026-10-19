@@ -1,32 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import './App.css'
+import type { components } from './types/generated/bff-api'
 
 type SortOrder = 'featured' | 'price-low' | 'price-high'
 
-type Product = {
-  bgg_id: number
-  name: string
-  release_year: number
-  min_players: number
-  max_players: number
-  playing_time_minutes: number
-  min_age: number
-  weight: number
-  category: string[]
-  price: number
-  publisher: string
-  image_url: string
-  featured?: boolean
-}
-
-const products: Product[] = [
-  { bgg_id: 274364, name: 'Watergate', release_year: 2019, min_players: 2, max_players: 2, playing_time_minutes: 60, min_age: 12, weight: 2.25, category: ['Juegos de Estrategia'], price: 90000, publisher: 'Salt & Pepper Games', image_url: '/media/portadas/2743640.webp', featured: true },
-  { bgg_id: 230244, name: 'Black Angel', release_year: 2019, min_players: 1, max_players: 4, playing_time_minutes: 120, min_age: 12, weight: 3.82, category: ['Juegos de Estrategia'], price: 186000, publisher: 'Asmodee Pearl Games', image_url: '/media/portadas/2302440.webp', featured: true },
-  { bgg_id: 272409, name: 'Pequeñas Grandes Tácticas', release_year: 2019, min_players: 1, max_players: 4, playing_time_minutes: 60, min_age: 14, weight: 0.24, category: ['Juegos de Estrategia'], price: 101800, publisher: 'Devir', image_url: '/media/portadas/2724090.webp' },
-  { bgg_id: 241451, name: "Aeon's End: Legacy", release_year: 2019, min_players: 1, max_players: 4, playing_time_minutes: 90, min_age: 14, weight: 2.84, category: ['Juegos de Estrategia', 'Juegos Temáticos'], price: 181500, publisher: 'SD Games', image_url: '/media/portadas/2414510.webp' },
-]
-
-const categories = ['Todos', 'Juegos de Estrategia', 'Juegos Temáticos'] as const
+type Product = components['schemas']['Product'] & { featured?: boolean }
+type ProductPage = components['schemas']['ProductPage']
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price)
@@ -63,48 +43,67 @@ function ProductCard({ product }: { product: Product }) {
 }
 
 function App() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [retry, setRetry] = useState(0)
+  const [searchDraft, setSearchDraft] = useState('')
   const [search, setSearch] = useState('')
   const [year, setYear] = useState('')
   const [minPlayers, setMinPlayers] = useState('')
   const [maxPlayers, setMaxPlayers] = useState('')
-  const [category, setCategory] = useState<(typeof categories)[number]>('Todos')
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
   const [sort, setSort] = useState<SortOrder>('featured')
 
+  useEffect(() => {
+    const controller = new AbortController()
+    const params = new URLSearchParams({ page: '1', page_size: '100' })
+    if (search.trim()) params.set('search', search.trim())
+    if (year) params.set('year_published', year)
+    if (minPlayers) params.set('min_players', minPlayers)
+    if (maxPlayers) params.set('max_players', maxPlayers)
+    if (minPrice) params.set('price_min', minPrice)
+    if (maxPrice) params.set('price_max', maxPrice)
+
+    setLoading(true)
+    setError(null)
+    fetch(`${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1'}/products?${params}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('No se pudo cargar el catálogo.')
+        return response.json() as Promise<ProductPage>
+      })
+      .then((page) => setProducts(page.items))
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === 'AbortError') return
+        setError(reason instanceof Error ? reason.message : 'No se pudo cargar el catálogo.')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [search, year, minPlayers, maxPlayers, minPrice, maxPrice, retry])
+
   const clearFilters = () => {
+    setSearchDraft('')
     setSearch('')
     setYear('')
     setMinPlayers('')
     setMaxPlayers('')
-    setCategory('Todos')
     setMinPrice('')
     setMaxPrice('')
     setSort('featured')
   }
 
-  const searchTerm = search.trim().toLocaleLowerCase()
-  const selectedYear = year ? Number(year) : undefined
-  const selectedMinPlayers = minPlayers ? Number(minPlayers) : undefined
-  const selectedMaxPlayers = maxPlayers ? Number(maxPlayers) : undefined
-  const selectedMinPrice = minPrice ? Number(minPrice) : undefined
-  const selectedMaxPrice = maxPrice ? Number(maxPrice) : undefined
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSearch(searchDraft.trim())
+  }
 
-  const visibleProducts = products
-    .filter((product) => {
-      const matchesSearch = !searchTerm ||
-        product.name.toLocaleLowerCase().includes(searchTerm) ||
-        product.publisher.toLocaleLowerCase().includes(searchTerm)
-      const matchesYear = selectedYear === undefined || product.release_year === selectedYear
-      const matchesPlayers =
-        (selectedMinPlayers === undefined || product.max_players >= selectedMinPlayers) &&
-        (selectedMaxPlayers === undefined || product.min_players <= selectedMaxPlayers)
-      const matchesCategory = category === 'Todos' || product.category.includes(category)
-      const matchesPrice =
-        (selectedMinPrice === undefined || product.price >= selectedMinPrice) &&
-        (selectedMaxPrice === undefined || product.price <= selectedMaxPrice)
-      return matchesSearch && matchesYear && matchesPlayers && matchesCategory && matchesPrice
-    })
+  const visibleProducts = [...products]
     .sort((first, second) => {
       if (sort === 'price-low') return first.price - second.price
       if (sort === 'price-high') return second.price - first.price
@@ -135,6 +134,19 @@ function App() {
             <p className="eyebrow">Tu próxima partida empieza aquí</p>
             <h1 id="hero-title">Juegos que reúnen<br /><em>grandes historias.</em></h1>
             <p className="hero-lede">Descubre juegos de mesa para compartir, competir y crear recuerdos alrededor de la mesa.</p>
+            <form className="top-search" onSubmit={submitSearch} role="search">
+              <label htmlFor="catalog-search">Buscar por nombre o editorial</label>
+              <div className="top-search-controls">
+                <input
+                  id="catalog-search"
+                  type="search"
+                  value={searchDraft}
+                  onChange={(event) => setSearchDraft(event.target.value)}
+                  placeholder="Ej. Devir o Watergate"
+                />
+                <button type="submit" className="primary-button">Buscar</button>
+              </div>
+            </form>
             <a className="primary-button" href="#catalogo">Explorar catálogo <span aria-hidden="true">↗</span></a>
           </div>
           <div className="hero-art" aria-hidden="true">
@@ -152,9 +164,6 @@ function App() {
           </div>
           <div className="filter-panel" aria-label="Filtros del catálogo">
             <div className="filter-row">
-              <label>Buscar por nombre o editorial
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej. Devir o Watergate" />
-              </label>
               <label>Año de publicación
                 <input type="number" min="0" value={year} onChange={(event) => setYear(event.target.value)} />
               </label>
@@ -172,13 +181,6 @@ function App() {
               </label>
             </div>
             <div className="catalog-toolbar">
-              <div className="category-list" id="categorias" aria-label="Filtrar por categoría">
-                {categories.map((item) => (
-                  <button type="button" className={category === item ? 'category active' : 'category'} key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>
-                    {item}
-                  </button>
-                ))}
-              </div>
               <label className="sort-control">Ordenar por
                 <select value={sort} onChange={(event) => setSort(event.target.value as SortOrder)} aria-label="Ordenar productos">
                   <option value="featured">Recomendados</option>
@@ -190,7 +192,15 @@ function App() {
             <div className="results-summary" aria-live="polite">{visibleProducts.length} resultados</div>
             <button type="button" className="clear-filters" onClick={clearFilters}>Limpiar filtros</button>
           </div>
-          {visibleProducts.length === 0 ? (
+          {loading ? (
+            <div className="empty-state" role="status">Cargando catálogo...</div>
+          ) : error ? (
+            <div className="empty-state" role="alert">
+              <h3>No se pudo cargar el catálogo</h3>
+              <p>{error}</p>
+              <button type="button" className="primary-button" onClick={() => setRetry((value) => value + 1)}>Reintentar</button>
+            </div>
+          ) : visibleProducts.length === 0 ? (
             <div className="empty-state" role="status">
               <h3>No encontramos juegos</h3>
               <p>Probá con otros criterios o limpiá los filtros.</p>

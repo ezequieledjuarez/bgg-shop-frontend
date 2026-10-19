@@ -78,6 +78,10 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #e4a56e; ou
 .hero h1 { color: #4d372b; }
 .hero-copy { max-width: 580px; }
 .hero-lede { color: #70675f; font-size: 1.1rem; line-height: 1.6; max-width: 480px; }
+.top-search { margin: 24px 0 18px; max-width: 480px; }
+.top-search label { color: #4d372b; font-size: .85rem; margin-bottom: 8px; }
+.top-search-controls { display: flex; gap: 10px; }
+.top-search-controls input { flex: 1; min-width: 0; }
 .hero-art { min-height: 270px; position: relative; }
 .hero-card { border-radius: 12px; height: 210px; position: absolute; transform: rotate(10deg); width: 145px; }
 .hero-card-back { background: #c88758; left: 28%; top: 12%; transform: rotate(-12deg); }

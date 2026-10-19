@@ -1,5 +1,14 @@
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import { defineConfig, type UserConfig } from 'vite';
+
+// Extended UserConfig type for Vitest support without unresolved imports
+type VitestUserConfig = UserConfig & {
+  test?: {
+    environment?: string;
+    setupFiles?: string | string[];
+    css?: boolean;
+  };
+};
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -9,4 +18,4 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     css: true,
   },
-})
+} as VitestUserConfig);

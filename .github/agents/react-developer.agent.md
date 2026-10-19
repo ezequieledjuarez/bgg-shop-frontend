@@ -32,10 +32,16 @@ comportamiento o el diseño, solicita aclaración antes de implementarla.
 
 ## Flujo obligatorio
 
-### 1. Inspección
+### 1. Inspección y Sincronización de Tipos (Spec-Driven Development)
 
 - Lee `package.json`, configuración de TypeScript, bundler, lint, test runner y
   estructura de rutas.
+- **Sincronización de Contrato OpenAPI:** Antes de implementar o modificar componentes que consuman la API del BFF, verifica si el contrato `bgg-shop-bff/specs/openapi-bff.yaml` fue modificado o creado.
+- Si hubo cambios en la especificación OpenAPI, ejecuta la generación automática de tipos TypeScript en la terminal:
+  ```bash
+  npm run generate:types
+  ```
+- **Única Fuente de Verdad:** Importa y utiliza **únicamente** los tipos generados en `src/types/generated/bff-api.d.ts` (o equivalente) para las respuestas de API, DTOs y payloads. Nunca edites a mano los archivos dentro de `src/types/generated/`.
 - Busca componentes, hooks, estilos y pruebas similares antes de crear nuevos.
 - Identifica el sistema de diseño, tokens, librería de componentes y estrategia
   de fetching ya usada.
@@ -47,7 +53,7 @@ comportamiento o el diseño, solicita aclaración antes de implementarla.
 - Divide la UI en componentes con responsabilidades claras.
 - Mantén los componentes presentacionales separados de fetching, mutaciones y
   reglas de dominio cuando el proyecto use esa separación.
-- Define props explícitas y tipos discriminados para variantes.
+- Define props explícitas y tipos discriminados para variantes, basando los modelos de datos en los tipos autogenerados de la spec.
 - Prefiere composición y componentes pequeños a una proliferación de boolean
   props.
 - Decide el estado mínimo necesario: deriva valores durante el render cuando sea
@@ -79,7 +85,7 @@ comportamiento o el diseño, solicita aclaración antes de implementarla.
   Query); si no existe una, no introduzcas una librería sin justificarlo.
 - Cancela requests obsoletas y evita actualizar estado después de desmontar.
 - No pongas secretos, tokens privados ni credenciales en código cliente.
-- Valida y tipa las respuestas de API en el límite de entrada.
+- Valida y tipa las respuestas de API en el límite de entrada usando las definiciones del contrato autogenerado.
 - Muestra errores explícitos; no devuelvas datos vacíos como si fueran éxito.
 
 ## Rendimiento
@@ -135,7 +141,7 @@ comportamiento o el diseño, solicita aclaración antes de implementarla.
   implementación.
 - Cubre interacción principal, estados de error/vacío/carga, accesibilidad y
   rutas críticas.
-- Reutiliza mocks, fixtures y utilidades existentes.
+- Reutiliza mocks, fixtures y utilidades existentes (asegurando que los mocks de MSW respeten las definiciones de los tipos generados).
 - Ejecuta el lint, type-check y las pruebas enfocadas; amplía a la suite completa
   si la modificación afecta infraestructura compartida.
 - Corrige errores introducidos por el cambio; no ocultes warnings con supresiones
@@ -148,14 +154,16 @@ Al finalizar, reporta:
 
 1. Archivos modificados y responsabilidad de cada uno.
 2. Componentes, hooks, rutas o estados añadidos.
-3. Decisiones de accesibilidad y rendimiento relevantes.
-4. Dependencias nuevas, si las hubo, y su justificación.
-5. Comandos de lint, type-check y pruebas ejecutados con resultados.
-6. Supuestos, limitaciones o trabajo pendiente.
+3. Estado de la generación de tipos (`npm run generate:types`) y sincronización con el contrato del BFF.
+4. Decisiones de accesibilidad y rendimiento relevantes.
+5. Dependencias nuevas, si las hubo, y su justificación.
+6. Comandos de lint, type-check y pruebas ejecutados con resultados.
+7. Supuestos, limitaciones o trabajo pendiente.
 
 Verifica antes de terminar:
 
 - La UI funciona en los estados de carga, error, vacío y éxito aplicables.
+- Los tipos utilizados derivan del contrato autogenerado `bff-api.d.ts`.
 - No hay waterfalls evitables ni requests duplicadas.
 - Los imports y cargas dinámicas no incorporan bundle innecesario.
 - Los efectos tienen propósito, cleanup y dependencias correctas.
