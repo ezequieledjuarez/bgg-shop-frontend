@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './session';
+import { authenticationErrorMessage } from '../ui/messages';
 
 type AuthMode = 'login' | 'register';
 
@@ -119,15 +120,17 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
       const payload = await response.json() as {
         user?: { id: string; email: string; first_name: string; last_name: string; is_active: boolean };
         session?: { access_token: string; refresh_token?: string | null; csrf_token?: string | null } | null;
-        errors?: Array<{ field?: string[] | null; message: string }>;
+        errors?: Array<{ field?: string[] | null; code?: string; message?: string }>;
       };
       if (!response.ok) {
         const nextErrors: FormErrors = {};
         for (const error of payload.errors ?? []) {
           const field = error.field?.[0];
-          if (field) nextErrors[field] = error.message;
+          if (field) nextErrors[field] = authenticationErrorMessage(error.code);
         }
-        setErrors(Object.keys(nextErrors).length ? nextErrors : { form: payload.errors?.[0]?.message ?? 'No se pudo completar la autenticación.' });
+        setErrors(Object.keys(nextErrors).length
+          ? nextErrors
+          : { form: authenticationErrorMessage(payload.errors?.[0]?.code) });
         return;
       }
       if (isRegister) {
