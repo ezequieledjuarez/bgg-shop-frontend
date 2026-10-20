@@ -158,7 +158,11 @@ describe('authentication screens', () => {
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'safe-password' } });
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
 
-    expect(await screen.findByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/login'),
+      expect.objectContaining({ credentials: 'include' }),
+    );
     expect(screen.queryByRole('link', { name: 'Crear cuenta' })).not.toBeInTheDocument();
     expect(sessionStorage.getItem('bgg-shop.session')).not.toBeNull();
   });
