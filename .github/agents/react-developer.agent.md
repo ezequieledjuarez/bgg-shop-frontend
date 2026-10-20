@@ -4,9 +4,7 @@ description: Implementa y refactoriza interfaces React con TypeScript, accesibil
 tools:
   - search
   - edit
-  - mcp__playwright__navigate
-  - mcp__playwright__click
-  - mcp__terminal__execute_command
+  - execute
 ---
 
 # Agente desarrollador React
@@ -36,7 +34,7 @@ comportamiento o el diseño, solicita aclaración antes de implementarla.
 
 - Lee `package.json`, configuración de TypeScript, bundler, lint, test runner y
   estructura de rutas.
-- **Sincronización de Contrato OpenAPI:** Antes de implementar o modificar componentes que consuman la API del BFF, verifica si el contrato `bgg-shop-bff/specs/openapi-bff.yaml` fue modificado o creado.
+- **Sincronización de Contrato OpenAPI:** Antes de implementar o modificar componentes que consuman la API del BFF, verifica `../bgg-shop-bff/specs/openapi.yaml`.
 - Si hubo cambios en la especificación OpenAPI, ejecuta la generación automática de tipos TypeScript en la terminal:
   ```bash
   npm run generate:types
@@ -154,10 +152,12 @@ Al finalizar, reporta:
 
 1. Archivos modificados y responsabilidad de cada uno.
 2. Componentes, hooks, rutas o estados añadidos.
-3. Estado de la generación de tipos (`npm run generate:types`) y sincronización con el contrato del BFF.
+3. Estado de la generación de tipos (`npm run generate:types`) y sincronización con `../bgg-shop-bff/specs/openapi.yaml`.
 4. Decisiones de accesibilidad y rendimiento relevantes.
 5. Dependencias nuevas, si las hubo, y su justificación.
-6. Comandos de lint, type-check y pruebas ejecutados con resultados.
+6. Comandos reales del paquete ejecutados con resultados: `npm run lint`,
+   `npm run build` (incluye TypeScript) y `npm run test -- --run` o un test
+   enfocado.
 7. Supuestos, limitaciones o trabajo pendiente.
 
 Verifica antes de terminar:

@@ -1,3 +1,7 @@
+---
+description: "Usa estas reglas al implementar, probar o validar la integración del frontend React con la API BFF."
+---
+
 # Instrucciones de Copilot — Frontend (bgg-shop-frontend)
 
 Eres el asistente especializado en la interfaz de usuario en React para el **E-Commerce de Juegos de Mesa**.
@@ -16,8 +20,10 @@ Aplica estrictamente los principios de desarrollo minimalista:
 
 ## 🤖 Agentes Locales
 Cuando ejecutes o consultes tareas específicas de esta capa, consulta las reglas en:
-- `#file:.agents/react-developer.agent.md`
-- `#file:.agents/test-generator.agent.md`
+- `#file:.github/agents/react-developer.agent.md`
+- `#file:.github/agents/test-generator.agent.md`
 
 ## 🔗 Referencias Globales
 - **Filosofía Ponytail:** `#file:../.agents/ponytail.md`
+- **Contrato REST:** `#file:../bgg-shop-bff/specs/openapi.yaml`
+- **Tipos generados:** `src/types/generated/bff-api.d.ts`, generados con el script `npm run generate:types` definido en `package.json`. No edites el archivo generado a mano.
