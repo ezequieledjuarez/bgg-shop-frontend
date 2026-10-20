@@ -2,12 +2,13 @@ import { render } from '@testing-library/react'
 import { fireEvent, screen, within } from '@testing-library/dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import type { components } from './types/generated/bff-api'
 
-const products = [
-  { bgg_id: 1, name: 'Watergate', release_year: 2019, min_players: 2, max_players: 2, playing_time_minutes: 60, min_age: 12, weight: 2.25, category: ['Juegos de Estrategia'], price: 90000, publisher: 'Salt & Pepper Games', image_url: '/watergate.webp' },
-  { bgg_id: 2, name: 'Black Angel', release_year: 2019, min_players: 1, max_players: 4, playing_time_minutes: 120, min_age: 12, weight: 3.82, category: ['Juegos de Estrategia'], price: 186000, publisher: 'Asmodee Pearl Games', image_url: '/black-angel.webp' },
-  { bgg_id: 3, name: 'Pequeñas Grandes Tácticas', release_year: 2019, min_players: 1, max_players: 4, playing_time_minutes: 60, min_age: 14, weight: 0.24, category: ['Juegos de Estrategia'], price: 101800, publisher: 'Devir', image_url: '/tacticas.webp' },
-  { bgg_id: 4, name: "Aeon's End: Legacy", release_year: 2019, min_players: 1, max_players: 4, playing_time_minutes: 90, min_age: 14, weight: 2.84, category: ['Juegos de Estrategia', 'Juegos Temáticos'], price: 181500, publisher: 'SD Games', image_url: '/aeons-end.webp' },
+const products: components['schemas']['Product'][] = [
+  { bgg_id: 1, name: 'Watergate', release_year: 2019, min_players: 2, max_players: 2, playing_time_minutes: 60, min_age: 12, weight: 2.25, category: ['Juegos de Estrategia'], price: 90000, quantity: 10, publisher: 'Salt & Pepper Games', image_url: '/watergate.webp' },
+  { bgg_id: 2, name: 'Black Angel', release_year: 2019, min_players: 1, max_players: 4, playing_time_minutes: 120, min_age: 12, weight: 3.82, category: ['Juegos de Estrategia'], price: 186000, quantity: 10, publisher: 'Asmodee Pearl Games', image_url: '/black-angel.webp' },
+  { bgg_id: 3, name: 'Pequeñas Grandes Tácticas', release_year: 2019, min_players: 1, max_players: 4, playing_time_minutes: 60, min_age: 14, weight: 0.24, category: ['Juegos de Estrategia'], price: 101800, quantity: 10, publisher: 'Devir', image_url: '/tacticas.webp' },
+  { bgg_id: 4, name: "Aeon's End: Legacy", release_year: 2019, min_players: 1, max_players: 4, playing_time_minutes: 90, min_age: 14, weight: 2.84, category: ['Juegos de Estrategia', 'Juegos Temáticos'], price: 181500, quantity: 10, publisher: 'SD Games', image_url: '/aeons-end.webp' },
 ]
 
 beforeEach(() => {

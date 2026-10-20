@@ -30,3 +30,29 @@ export function reviewErrorMessage(code?: string) {
       return 'No se pudo enviar la reseña. Intentá nuevamente.'
   }
 }
+
+
+export const cartMessages = {
+  openCart: "Carrito",
+  loading: "Cargando carrito...",
+  loadErrorTitle: "No se pudo cargar el carrito",
+  empty: "Tu carrito está vacío.",
+  add: (name: string) => `Agregar ${name} al carrito`,
+  adding: "Agregando...",
+  updating: "Actualizando...",
+  removing: "Quitando...",
+  addSuccess: (name: string) => `${name} se agregó al carrito.`,
+  addError: "No se pudo agregar el juego. Intentá nuevamente.",
+  availableStock: (quantity: number) => `Disponibles: ${quantity}`,
+  total: "Total del carrito",
+  quantity: (name: string) => `Cantidad de ${name}`,
+  updateQuantity: (name: string) => `Actualizar cantidad de ${name}`,
+  remove: (name: string) => `Quitar ${name}`,
+  updateError: "No se pudo actualizar la cantidad. Intentá nuevamente.",
+  retry: "Reintentar",
+  continueShopping: "Seguir comprando",
+} as const
+
+export function cartErrorMessage() {
+  return "No se pudo completar la operación del carrito. Intentá nuevamente."
+}

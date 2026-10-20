@@ -4,12 +4,14 @@ import { LoginScreen, RegisterScreen } from './auth/AuthScreens';
 import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
 import './App.css';
 import type { components } from './types/generated/bff-api'
-import { reviewErrorMessage } from './ui/messages'
+import { cartErrorMessage, cartMessages, reviewErrorMessage } from './ui/messages'
 
 type SortOrder = 'featured' | 'price-low' | 'price-high'
 
 type Product = components['schemas']['Product'] & { featured?: boolean }
 type ProductPage = components['schemas']['ProductPage']
+type CartResponse = components['schemas']['CartResponse']
+type ErrorResponse = components['schemas']['ErrorResponse']
 type ProductDetail = components['schemas']['ProductDetail']
 type CreateReviewRequest = components['schemas']['CreateReviewRequest']
 
@@ -24,9 +26,10 @@ function formatPrice(price: number) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price)
 }
 
-function ProductCard({ product, onOpen }: { product: Product; onOpen: (name: string) => void }) {
+function ProductCard({ product, onOpen, onAdd, adding }: { product: Product; onOpen: (name: string) => void; onAdd: (product: Product) => void; adding: boolean }) {
+  const headingId = `product-${product.bgg_id}-name`
   return (
-    <article className="product-card">
+    <article className="product-card" aria-labelledby={headingId}>
       <div className="product-image">
         {product.featured && <span className="badge">Destacado</span>}
         <img src={product.image_url} alt={`Portada de ${product.name}`} />
@@ -37,18 +40,22 @@ function ProductCard({ product, onOpen }: { product: Product; onOpen: (name: str
           <span aria-hidden="true">·</span>
           <span>{product.publisher}</span>
         </div>
-        <h3>{product.name}</h3>
+        <h3 id={headingId}>{product.name}</h3>
         <p>{product.playing_time_minutes} minutos de juego · {product.release_year}</p>
         <div className="product-details">
           <span>{product.min_players}–{product.max_players} jugadores</span>
           <span>{product.min_age}+</span>
         </div>
+        <p className="product-stock">{cartMessages.availableStock(product.quantity)}</p>
         <div className="product-footer">
           <strong>{formatPrice(product.price)}</strong>
           <button className="text-button" type="button" onClick={() => onOpen(product.name)} aria-label={`Ver detalles de ${product.name}`}>
             Ver detalles <span aria-hidden="true">→</span>
           </button>
         </div>
+        <button className="primary-button add-to-cart" type="button" onClick={() => onAdd(product)} disabled={product.quantity === 0 || adding} aria-label={cartMessages.add(product.name)}>
+          {product.quantity === 0 ? "Sin stock" : adding ? cartMessages.adding : cartMessages.add(product.name)}
+        </button>
       </div>
     </article>
   )
@@ -61,6 +68,18 @@ function readAccessToken() {
   } catch {
     return undefined
   }
+}
+
+
+function cartRequestOptions(method: string, body?: unknown, signal?: AbortSignal): RequestInit {
+  const headers = new Headers()
+  if (body !== undefined) headers.set("Content-Type", "application/json")
+  const accessToken = readAccessToken()
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`)
+  const options: RequestInit = { method, headers, credentials: "include" }
+  if (body !== undefined) options.body = JSON.stringify(body)
+  if (signal) options.signal = signal
+  return options
 }
 
 function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
@@ -142,6 +161,7 @@ function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => voi
           <h1>{product.name}</h1>
           <p>{product.publisher} · {product.release_year}</p>
           <p>{product.min_players}–{product.max_players} jugadores · {product.playing_time_minutes} minutos · {product.min_age}+</p>
+          <p>{cartMessages.availableStock(product.quantity)}</p>
           <strong>{formatPrice(product.price)}</strong>
           <section aria-labelledby="reviews-title">
             <h2 id="reviews-title">Reseñas de la comunidad</h2>
@@ -173,7 +193,126 @@ function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => voi
   )
 }
 
-function CatalogApp() {
+
+function CartScreen({ onBack }: { onBack: () => void }) {
+  const [cart, setCart] = useState<CartResponse | null>(null)
+  const [loadState, setLoadState] = useState<"loading" | "error" | "success">("loading")
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [operationError, setOperationError] = useState<string | null>(null)
+  const [pendingId, setPendingId] = useState<number | null>(null)
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({})
+  const [retry, setRetry] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch(`${apiBaseUrl}/cart`, cartRequestOptions("GET", undefined, controller.signal))
+      .then(async (response) => {
+        if (!response.ok) throw new Error(cartErrorMessage())
+        return response.json() as Promise<CartResponse>
+      })
+      .then((data) => {
+        setCart(data)
+        setLoadState("success")
+      })
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted) return
+        setLoadError(reason instanceof Error ? reason.message : cartErrorMessage())
+        setLoadState("error")
+      })
+    return () => controller.abort()
+  }, [retry])
+
+  const changeCart = async (bggId: number, method: "PATCH" | "DELETE", body?: unknown) => {
+    if (pendingId !== null) return
+    setPendingId(bggId)
+    setOperationError(null)
+    try {
+      const response = await fetch(`${apiBaseUrl}/cart/items/${bggId}`, cartRequestOptions(method, body))
+      const payload = await response.json() as CartResponse | ErrorResponse
+      if ("lines" in payload) {
+        setCart(payload)
+        setQuantityDrafts({})
+        if (!response.ok && payload.warnings.length === 0) setOperationError(cartErrorMessage())
+      } else {
+        setOperationError(cartErrorMessage())
+      }
+    } catch {
+      setOperationError(cartErrorMessage())
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  const submitQuantity = (event: FormEvent<HTMLFormElement>, bggId: number) => {
+    event.preventDefault()
+    const quantity = Number(quantityDrafts[bggId])
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      setOperationError(cartMessages.updateError)
+      return
+    }
+    void changeCart(bggId, "PATCH", { quantity })
+  }
+
+  return (
+    <main className="cart-page" aria-labelledby="cart-title">
+      <button className="text-button" type="button" onClick={onBack}>← {cartMessages.continueShopping}</button>
+      <h1 id="cart-title">Tu carrito</h1>
+      {loadState === "loading" ? (
+        <div className="empty-state" role="status">{cartMessages.loading}</div>
+      ) : loadState === "error" ? (
+        <div className="empty-state" role="alert">
+          <h2>{cartMessages.loadErrorTitle}</h2>
+          <p>{loadError}</p>
+          <button className="primary-button" type="button" onClick={() => { setLoadState("loading"); setLoadError(null); setRetry((value) => value + 1) }}>{cartMessages.retry}</button>
+        </div>
+      ) : cart ? (
+        <>
+          {operationError && <p role="alert">{operationError}</p>}
+          {cart.warnings.map((warning, index) => <p className="cart-warning" role="status" key={`${warning.code}-${index}`}>{warning.message}</p>)}
+          {cart.lines.length === 0 ? (
+            <p className="empty-state" role="status">{cartMessages.empty}</p>
+          ) : (
+            <ul className="cart-lines" aria-label="Juegos en el carrito">
+              {cart.lines.map((line) => (
+                <li className="cart-line" key={line.bgg_id} aria-label={line.name}>
+                  <div className="cart-line-info">
+                    <h2>{line.name}</h2>
+                    <p>{formatPrice(line.unit_price)} por unidad · {line.available_stock} disponibles</p>
+                    <strong>Subtotal: {formatPrice(line.subtotal)}</strong>
+                  </div>
+                  <form className="cart-quantity-form" onSubmit={(event) => submitQuantity(event, line.bgg_id)}>
+                    <label htmlFor={`cart-quantity-${line.bgg_id}`}>{cartMessages.quantity(line.name)}</label>
+                    <input
+                      id={`cart-quantity-${line.bgg_id}`}
+                      type="number"
+                      min="1"
+                      max={line.available_stock}
+                      required
+                      value={quantityDrafts[line.bgg_id] ?? String(line.quantity)}
+                      onChange={(event) => setQuantityDrafts((current) => ({ ...current, [line.bgg_id]: event.target.value }))}
+                    />
+                    <button className="text-button" type="submit" disabled={pendingId !== null || line.available_stock === 0} aria-label={cartMessages.updateQuantity(line.name)}>
+                      {pendingId === line.bgg_id ? cartMessages.updating : "Actualizar cantidad"}
+                    </button>
+                  </form>
+                  <button className="text-button remove-cart-item" type="button" onClick={() => void changeCart(line.bgg_id, "DELETE")} disabled={pendingId !== null} aria-label={cartMessages.remove(line.name)}>
+                    {pendingId === line.bgg_id ? cartMessages.removing : "Quitar"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <section className="cart-total" aria-label={cartMessages.total}>
+            <h2>{cartMessages.total}</h2>
+            <strong>{formatPrice(cart.total)}</strong>
+          </section>
+        </>
+      ) : null}
+    </main>
+  )
+}
+
+function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => Boolean(sessionStorage.getItem(SESSION_STORAGE_KEY)),
   )
@@ -189,6 +328,9 @@ function CatalogApp() {
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
   const [sort, setSort] = useState<SortOrder>('featured')
+  const [addingProductId, setAddingProductId] = useState<number | null>(null)
+  const [cartFeedback, setCartFeedback] = useState<string | null>(null)
+  const [cartFeedbackError, setCartFeedbackError] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -250,6 +392,36 @@ function CatalogApp() {
     window.dispatchEvent(new Event(SESSION_CHANGE_EVENT))
   }
 
+
+  const addProductToCart = async (product: Product) => {
+    if (addingProductId !== null || product.quantity === 0) return
+    setAddingProductId(product.bgg_id)
+    setCartFeedback(null)
+    setCartFeedbackError(false)
+    try {
+      const response = await fetch(`${apiBaseUrl}/cart/items`, cartRequestOptions("POST", { bgg_id: product.bgg_id, quantity: 1 }))
+      const payload = await response.json() as CartResponse | ErrorResponse
+      if (!response.ok) {
+        if ("warnings" in payload && payload.warnings.length > 0) {
+          setCartFeedback(payload.warnings.map((warning) => warning.message).join(" "))
+          return
+        }
+        setCartFeedbackError(true)
+        setCartFeedback(cartMessages.addError)
+        return
+      }
+      const cart = payload as CartResponse
+      setCartFeedback(cart.warnings.length > 0
+        ? cart.warnings.map((warning) => warning.message).join(" ")
+        : cartMessages.addSuccess(product.name))
+    } catch {
+      setCartFeedbackError(true)
+      setCartFeedback(cartMessages.addError)
+    } finally {
+      setAddingProductId(null)
+    }
+  }
+
   const visibleProducts = [...products]
     .sort((first, second) => {
       if (sort === 'price-low') return first.price - second.price
@@ -268,6 +440,7 @@ function CatalogApp() {
           <a className="active" href="#catalogo">Catálogo</a>
           <a href="#categorias">Categorías</a>
           <a href="#editorial">Editoriales</a>
+          <a href="/carrito" onClick={(event) => { event.preventDefault(); onNavigate("/carrito") }}>{cartMessages.openCart}</a>
         </nav>
         <div className="account-actions">
           {isAuthenticated ? (
@@ -345,6 +518,7 @@ function CatalogApp() {
             <div className="results-summary" aria-live="polite">{visibleProducts.length} resultados</div>
             <button type="button" className="clear-filters" onClick={clearFilters}>Limpiar filtros</button>
           </div>
+          {cartFeedback && <p role={cartFeedbackError ? "alert" : "status"} aria-live={cartFeedbackError ? "assertive" : "polite"}>{cartFeedback}</p>}
           {loading ? (
             <div className="empty-state" role="status">Cargando catálogo...</div>
           ) : error ? (
@@ -360,7 +534,7 @@ function CatalogApp() {
               <button type="button" className="primary-button" onClick={clearFilters}>Limpiar filtros</button>
             </div>
           ) : (
-            <div className="product-grid">{visibleProducts.map((product) => <ProductCard product={product} key={product.bgg_id} onOpen={(name) => { window.history.pushState({}, '', `/juegos/${slugify(name)}`); window.dispatchEvent(new PopStateEvent('popstate')) }} />)}</div>
+            <div className="product-grid">{visibleProducts.map((product) => <ProductCard product={product} key={product.bgg_id} onOpen={(name) => { window.history.pushState({}, '', `/juegos/${slugify(name)}`); window.dispatchEvent(new PopStateEvent('popstate')) }} onAdd={addProductToCart} adding={addingProductId === product.bgg_id} />)}</div>
           )}
         </section>
 
@@ -396,8 +570,9 @@ function App() {
 
   if (pathname === '/login') return <LoginScreen onBack={() => navigate('/')} />
   if (pathname === '/register') return <RegisterScreen onBack={() => navigate('/')} />
+  if (pathname === '/carrito') return <CartScreen onBack={() => navigate('/')} />
   if (pathname.startsWith('/juegos/')) return <ProductDetailScreen slug={decodeURIComponent(pathname.slice('/juegos/'.length))} onBack={() => navigate('/')} />
-  return <CatalogApp />
+  return <CatalogApp onNavigate={navigate} />
 }
 
 export default App
