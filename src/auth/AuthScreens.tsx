@@ -106,6 +106,7 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
     try {
       const response = await fetch(`${apiBaseUrl}/auth/${isRegister ? 'register' : 'login'}`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(isRegister ? {
           email: values.email.trim(),
