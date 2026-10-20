@@ -35,7 +35,7 @@ export interface paths {
         put?: never;
         /**
          * Authenticate a customer
-         * @description Authenticates a customer using local email and password credentials.
+         * @description Authenticates a customer and merges any guest cart identified by the HttpOnly cart cookie.
          */
         post: operations["loginAccount"];
         delete?: never;
@@ -62,6 +62,61 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the current cart
+         * @description Reads the authenticated account cart when a Bearer token is provided; otherwise uses the opaque guest cart cookie.
+         */
+        get: operations["getCart"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a product to the cart */
+        post: operations["addCartItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/items/{bgg_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a product from the cart */
+        delete: operations["removeCartItem"];
+        options?: never;
+        head?: never;
+        /** Set a cart item's quantity */
+        patch: operations["updateCartItemQuantity"];
         trace?: never;
     };
     "/api/v1/games/{slug}": {
@@ -102,6 +157,38 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CartItemRequest: {
+            /** @description BoardGameGeek product identifier. */
+            bgg_id: number;
+            quantity: number;
+        };
+        CartQuantityRequest: {
+            quantity: number;
+        };
+        CartLine: {
+            bgg_id: number;
+            name: string;
+            quantity: number;
+            /** @description Current product inventory; cart edits do not reserve stock. */
+            available_stock: number;
+            /** Format: double */
+            unit_price: number;
+            /** Format: double */
+            subtotal: number;
+        };
+        CartWarning: {
+            field?: string[] | null;
+            /** @example INSUFFICIENT_STOCK */
+            code: string;
+            message: string;
+        };
+        CartResponse: {
+            lines: components["schemas"]["CartLine"][];
+            /** Format: double */
+            total: number;
+            /** @description Core cart userErrors, including stock-limit feedback. */
+            warnings: components["schemas"]["CartWarning"][];
+        };
         CreateReviewRequest: {
             rating: number;
             body: string;
@@ -136,6 +223,11 @@ export interface components {
             price: number;
             publisher: string;
             image_url: string;
+            /**
+             * @description Current inventory available for this product.
+             * @example 10
+             */
+            quantity: number;
             review_summary: components["schemas"]["ReviewSummary"];
             approved_reviews: components["schemas"]["ApprovedReview"][];
         };
@@ -221,6 +313,11 @@ export interface components {
             publisher: string;
             /** @example /media/portadas/2743640.webp */
             image_url: string;
+            /**
+             * @description Current inventory available for this product.
+             * @example 10
+             */
+            quantity: number;
         };
         ProductPage: {
             items: components["schemas"]["Product"][];
@@ -248,6 +345,8 @@ export interface components {
     };
     responses: never;
     parameters: {
+        /** @description Opaque guest cart identifier issued by the BFF in an HttpOnly, SameSite=Lax cookie. The default name is cart_id and can be changed with CART_COOKIE_NAME. Secure defaults on outside debug/development and is configurable with CART_COOKIE_SECURE. This is not a user identifier; Core selects authenticated carts from the Bearer token. */
+        GuestCartCookie: string;
         /** @description Case-insensitive search over product name or publisher. */
         Search: string;
         /** @description Exact publication year. */
@@ -335,7 +434,10 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: never;
+            cookie?: {
+                /** @description Opaque guest cart identifier issued by the BFF in an HttpOnly, SameSite=Lax cookie. The default name is cart_id and can be changed with CART_COOKIE_NAME. Secure defaults on outside debug/development and is configurable with CART_COOKIE_SECURE. This is not a user identifier; Core selects authenticated carts from the Bearer token. */
+                cart_id?: components["parameters"]["GuestCartCookie"];
+            };
         };
         requestBody: {
             content: {
@@ -343,9 +445,11 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Customer authenticated successfully. */
+            /** @description Customer authenticated successfully; the guest cart cookie is cleared after the Core merges it. */
             200: {
                 headers: {
+                    /** @description Clears the guest cart cookie after successful login. */
+                    "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -437,6 +541,7 @@ export interface operations {
                      *             "Juegos de Estrategia"
                      *           ],
                      *           "price": 90000,
+                     *           "quantity": 10,
                      *           "publisher": "Salt & Pepper Games",
                      *           "image_url": "/media/portadas/2743640.webp"
                      *         }
@@ -481,6 +586,233 @@ export interface operations {
             };
         };
     };
+    getCart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                /** @description Opaque guest cart identifier issued by the BFF in an HttpOnly, SameSite=Lax cookie. The default name is cart_id and can be changed with CART_COOKIE_NAME. Secure defaults on outside debug/development and is configurable with CART_COOKIE_SECURE. This is not a user identifier; Core selects authenticated carts from the Bearer token. */
+                cart_id?: components["parameters"]["GuestCartCookie"];
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current cart with current prices, available stock, and any cart warnings. */
+            200: {
+                headers: {
+                    /** @description Sets or refreshes the HttpOnly guest cart cookie when the cart is anonymous. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "lines": [
+                     *         {
+                     *           "bgg_id": 274364,
+                     *           "name": "Watergate",
+                     *           "quantity": 2,
+                     *           "available_stock": 10,
+                     *           "unit_price": 90000,
+                     *           "subtotal": 180000
+                     *         }
+                     *       ],
+                     *       "total": 180000,
+                     *       "warnings": []
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CartResponse"];
+                };
+            };
+            /** @description The BFF could not obtain a valid response from Core GraphQL. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    addCartItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                /** @description Opaque guest cart identifier issued by the BFF in an HttpOnly, SameSite=Lax cookie. The default name is cart_id and can be changed with CART_COOKIE_NAME. Secure defaults on outside debug/development and is configurable with CART_COOKIE_SECURE. This is not a user identifier; Core selects authenticated carts from the Bearer token. */
+                cart_id?: components["parameters"]["GuestCartCookie"];
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CartItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Product added and cart totals recalculated. */
+            200: {
+                headers: {
+                    /** @description Sets or refreshes the HttpOnly guest cart cookie when the cart is anonymous. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartResponse"];
+                };
+            };
+            /** @description The product identifier or quantity is invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The product does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartResponse"];
+                };
+            };
+            /** @description Requested quantity exceeds current stock; the existing cart is returned with a warning. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartResponse"];
+                };
+            };
+            /** @description The BFF could not obtain a valid response from Core GraphQL. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    removeCartItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bgg_id: number;
+            };
+            cookie?: {
+                /** @description Opaque guest cart identifier issued by the BFF in an HttpOnly, SameSite=Lax cookie. The default name is cart_id and can be changed with CART_COOKIE_NAME. Secure defaults on outside debug/development and is configurable with CART_COOKIE_SECURE. This is not a user identifier; Core selects authenticated carts from the Bearer token. */
+                cart_id?: components["parameters"]["GuestCartCookie"];
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Product removed and cart totals recalculated. */
+            200: {
+                headers: {
+                    /** @description Sets or refreshes the HttpOnly guest cart cookie when the cart is anonymous. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartResponse"];
+                };
+            };
+            /** @description The product identifier is invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The BFF could not obtain a valid response from Core GraphQL. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateCartItemQuantity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bgg_id: number;
+            };
+            cookie?: {
+                /** @description Opaque guest cart identifier issued by the BFF in an HttpOnly, SameSite=Lax cookie. The default name is cart_id and can be changed with CART_COOKIE_NAME. Secure defaults on outside debug/development and is configurable with CART_COOKIE_SECURE. This is not a user identifier; Core selects authenticated carts from the Bearer token. */
+                cart_id?: components["parameters"]["GuestCartCookie"];
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CartQuantityRequest"];
+            };
+        };
+        responses: {
+            /** @description Quantity updated and cart totals recalculated. */
+            200: {
+                headers: {
+                    /** @description Sets or refreshes the HttpOnly guest cart cookie when the cart is anonymous. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartResponse"];
+                };
+            };
+            /** @description The product identifier or quantity is invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The product does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartResponse"];
+                };
+            };
+            /** @description Requested quantity exceeds current stock; the existing cart is returned with a warning. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartResponse"];
+                };
+            };
+            /** @description The BFF could not obtain a valid response from Core GraphQL. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getGameDetail: {
         parameters: {
             query?: never;
@@ -498,6 +830,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "name": "Watergate",
+                     *       "release_year": 2019,
+                     *       "min_players": 2,
+                     *       "max_players": 2,
+                     *       "playing_time_minutes": 60,
+                     *       "min_age": 12,
+                     *       "weight": 2.25,
+                     *       "category": [
+                     *         "Juegos de Estrategia"
+                     *       ],
+                     *       "price": 90000,
+                     *       "quantity": 10,
+                     *       "publisher": "Salt & Pepper Games",
+                     *       "image_url": "/media/portadas/2743640.webp",
+                     *       "review_summary": {
+                     *         "approved_review_count": 0,
+                     *         "average_rating": null
+                     *       },
+                     *       "approved_reviews": []
+                     *     }
+                     */
                     "application/json": components["schemas"]["ProductDetail"];
                 };
             };
@@ -579,6 +934,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The BFF could not obtain a valid response from the Core GraphQL service. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "errors": [
+                     *         {
+                     *           "code": "UPSTREAM_ERROR",
+                     *           "message": "upstream GraphQL request failed"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AuthErrorResponse"];
                 };
             };
         };

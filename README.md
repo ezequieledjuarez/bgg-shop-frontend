@@ -35,8 +35,9 @@ el contrato y ejemplos ejecutables, véanse
 [`../bgg-shop-bff/README.md`](../bgg-shop-bff/README.md) y
 [`../bgg-shop-core/README.md`](../bgg-shop-core/README.md).
 
-El Frontend no implementa autenticación, carrito, checkout, pedidos ni
-mutaciones de compra. La UI no expone navegación de páginas ni botones de
+El Frontend muestra el stock (`quantity`) de cada juego y permite agregar,
+modificar y quitar artículos del carrito (`/carrito`) con el total calculado
+por el BFF. No implementa checkout, pedidos ni pago. La UI no expone navegación de páginas ni botones de
 categoría; el orden de relevancia no está implementado y los órdenes
 disponibles se resuelven localmente.
 
