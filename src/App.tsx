@@ -4,6 +4,7 @@ import { LoginScreen, RegisterScreen } from './auth/AuthScreens';
 import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
 import './App.css';
 import type { components } from './types/generated/bff-api'
+import { reviewErrorMessage } from './ui/messages'
 
 type SortOrder = 'featured' | 'price-low' | 'price-high'
 
@@ -70,6 +71,7 @@ function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => voi
   const [body, setBody] = useState('')
   const [submission, setSubmission] = useState<'idle' | 'submitting' | 'success'>('idle')
   const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -112,15 +114,14 @@ function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => voi
       })
       const payload = await response.json() as { errors?: Array<{ code?: string; message?: string }> }
       if (!response.ok) {
-        const code = payload.errors?.[0]?.code
-        setSubmissionError(code === 'REVIEW_ALREADY_EXISTS'
-          ? 'Ya dejaste una reseña para este juego.'
-          : payload.errors?.[0]?.message ?? 'No se pudo enviar la reseña.')
+        setSubmissionError(reviewErrorMessage(payload.errors?.[0]?.code))
         setSubmission('idle')
         return
       }
       setSubmission('success')
       setBody('')
+      setToast('Tu reseña fue enviada y quedó pendiente de moderación.')
+      window.setTimeout(() => setToast(null), 5000)
     } catch {
       setSubmissionError('No se pudo conectar con el servicio de reseñas.')
       setSubmission('idle')
@@ -132,6 +133,7 @@ function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => voi
 
   return (
     <main className="detail-page">
+      {toast && <div className="toast" role="status">{toast}<button type="button" onClick={() => setToast(null)} aria-label="Cerrar mensaje">×</button></div>}
       <button className="text-button" type="button" onClick={onBack}>← Volver al catálogo</button>
       <article className="detail-card">
         <img src={product.image_url} alt={`Portada de ${product.name}`} />
