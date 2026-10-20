@@ -4,17 +4,27 @@ import { LoginScreen, RegisterScreen } from './auth/AuthScreens';
 import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
 import './App.css';
 import type { components } from './types/generated/bff-api'
+import { reviewErrorMessage } from './ui/messages'
 
 type SortOrder = 'featured' | 'price-low' | 'price-high'
 
 type Product = components['schemas']['Product'] & { featured?: boolean }
 type ProductPage = components['schemas']['ProductPage']
+type ProductDetail = components['schemas']['ProductDetail']
+type CreateReviewRequest = components['schemas']['CreateReviewRequest']
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1'
+
+function slugify(value: string) {
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price)
 }
 
-function ProductCard({ product }: { product: Product }) {
+function ProductCard({ product, onOpen }: { product: Product; onOpen: (name: string) => void }) {
   return (
     <article className="product-card">
       <div className="product-image">
@@ -35,12 +45,131 @@ function ProductCard({ product }: { product: Product }) {
         </div>
         <div className="product-footer">
           <strong>{formatPrice(product.price)}</strong>
-          <button className="text-button" type="button" aria-label={`Ver detalles de ${product.name}`}>
+          <button className="text-button" type="button" onClick={() => onOpen(product.name)} aria-label={`Ver detalles de ${product.name}`}>
             Ver detalles <span aria-hidden="true">→</span>
           </button>
         </div>
       </div>
     </article>
+  )
+}
+
+function readAccessToken() {
+  try {
+    const session = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) ?? '{}') as { access_token?: string }
+    return session.access_token
+  } catch {
+    return undefined
+  }
+}
+
+function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
+  const [product, setProduct] = useState<ProductDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [rating, setRating] = useState('5')
+  const [body, setBody] = useState('')
+  const [submission, setSubmission] = useState<'idle' | 'submitting' | 'success'>('idle')
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch(`${apiBaseUrl}/games/${encodeURIComponent(slug)}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (response.status === 404) throw new Error('No encontramos ese juego.')
+        if (!response.ok) throw new Error('No se pudo cargar el detalle del juego.')
+        return response.json() as Promise<ProductDetail>
+      })
+      .then(setProduct)
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === 'AbortError') return
+        setError(reason instanceof Error ? reason.message : 'No se pudo cargar el detalle del juego.')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
+  }, [slug])
+
+  const submitReview = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const accessToken = readAccessToken()
+    if (!accessToken) {
+      setSubmissionError('Iniciá sesión para dejar una reseña.')
+      return
+    }
+    const request: CreateReviewRequest = { rating: Number(rating), body: body.trim() }
+    if (!request.body || request.body.length > 2000) {
+      setSubmissionError('La reseña debe tener entre 1 y 2000 caracteres.')
+      return
+    }
+    setSubmission('submitting')
+    setSubmissionError(null)
+    try {
+      const response = await fetch(`${apiBaseUrl}/games/${encodeURIComponent(slug)}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(request),
+      })
+      const payload = await response.json() as { errors?: Array<{ code?: string; message?: string }> }
+      if (!response.ok) {
+        setSubmissionError(reviewErrorMessage(payload.errors?.[0]?.code))
+        setSubmission('idle')
+        return
+      }
+      setSubmission('success')
+      setBody('')
+      setToast('Tu reseña fue enviada y quedó pendiente de moderación.')
+      window.setTimeout(() => setToast(null), 5000)
+    } catch {
+      setSubmissionError('No se pudo conectar con el servicio de reseñas.')
+      setSubmission('idle')
+    }
+  }
+
+  if (loading) return <main className="detail-page"><div className="empty-state" role="status">Cargando detalle...</div></main>
+  if (error || !product) return <main className="detail-page"><div className="empty-state" role="alert"><h1>No se pudo cargar el juego</h1><p>{error ?? 'Juego no encontrado.'}</p><button className="primary-button" type="button" onClick={onBack}>Volver al catálogo</button></div></main>
+
+  return (
+    <main className="detail-page">
+      {toast && <div className="toast" role="status">{toast}<button type="button" onClick={() => setToast(null)} aria-label="Cerrar mensaje">×</button></div>}
+      <button className="text-button" type="button" onClick={onBack}>← Volver al catálogo</button>
+      <article className="detail-card">
+        <img src={product.image_url} alt={`Portada de ${product.name}`} />
+        <div>
+          <p className="eyebrow">Detalle del juego</p>
+          <h1>{product.name}</h1>
+          <p>{product.publisher} · {product.release_year}</p>
+          <p>{product.min_players}–{product.max_players} jugadores · {product.playing_time_minutes} minutos · {product.min_age}+</p>
+          <strong>{formatPrice(product.price)}</strong>
+          <section aria-labelledby="reviews-title">
+            <h2 id="reviews-title">Reseñas de la comunidad</h2>
+            <p>{product.review_summary.approved_review_count} reseñas · {product.review_summary.average_rating?.toFixed(1) ?? 'Sin calificaciones'}</p>
+            {product.approved_reviews.length === 0 ? <p role="status">Todavía no hay reseñas aprobadas.</p> : (
+              <div>{product.approved_reviews.map((review) => <blockquote key={`${review.created_at}-${review.body}`}><p>“{review.body}”</p><footer>{review.rating}/5 · {new Date(review.created_at).toLocaleDateString('es-AR')}</footer></blockquote>)}</div>
+            )}
+          </section>
+        </div>
+      </article>
+      <section className="review-form-section" aria-labelledby="review-form-title">
+        <h2 id="review-form-title">Dejá tu reseña</h2>
+        {submission === 'success' ? <p role="status">Tu reseña fue enviada y quedó pendiente de moderación.</p> : (
+          <form onSubmit={submitReview}>
+            <label htmlFor="review-rating">Calificación
+              <select id="review-rating" value={rating} onChange={(event) => setRating(event.target.value)}>
+                {[5, 4, 3, 2, 1].map((value) => <option key={value} value={value}>{value}/5</option>)}
+              </select>
+            </label>
+            <label htmlFor="review-body">Reseña
+              <textarea id="review-body" value={body} maxLength={2000} onChange={(event) => setBody(event.target.value)} required />
+            </label>
+            {submissionError && <p role="alert">{submissionError}</p>}
+            <button className="primary-button" type="submit" disabled={submission === 'submitting'}>{submission === 'submitting' ? 'Enviando...' : 'Enviar reseña'}</button>
+          </form>
+        )}
+      </section>
+    </main>
   )
 }
 
@@ -231,7 +360,7 @@ function CatalogApp() {
               <button type="button" className="primary-button" onClick={clearFilters}>Limpiar filtros</button>
             </div>
           ) : (
-            <div className="product-grid">{visibleProducts.map((product) => <ProductCard product={product} key={product.bgg_id} />)}</div>
+            <div className="product-grid">{visibleProducts.map((product) => <ProductCard product={product} key={product.bgg_id} onOpen={(name) => { window.history.pushState({}, '', `/juegos/${slugify(name)}`); window.dispatchEvent(new PopStateEvent('popstate')) }} />)}</div>
           )}
         </section>
 
@@ -267,6 +396,7 @@ function App() {
 
   if (pathname === '/login') return <LoginScreen onBack={() => navigate('/')} />
   if (pathname === '/register') return <RegisterScreen onBack={() => navigate('/')} />
+  if (pathname.startsWith('/juegos/')) return <ProductDetailScreen slug={decodeURIComponent(pathname.slice('/juegos/'.length))} onBack={() => navigate('/')} />
   return <CatalogApp />
 }
 
