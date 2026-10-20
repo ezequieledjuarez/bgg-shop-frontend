@@ -37,10 +37,10 @@ describe('authentication screens', () => {
     render(<App />);
 
     expect(
-      screen.getByRole('heading', { name: 'Welcome back' }),
+      screen.getByRole('heading', { name: 'Te damos la bienvenida' }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password|contraseña/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Correo electrónico')).toBeInTheDocument();
+    expect(screen.getByLabelText('Contraseña')).toBeInTheDocument();
   });
 
   it('renders the registration fields at the register pathname', () => {
@@ -49,31 +49,31 @@ describe('authentication screens', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Create your account',
+        name: 'Creá tu cuenta',
       }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('First name')).toBeInTheDocument();
-    expect(screen.getByLabelText('Last name')).toBeInTheDocument();
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^password$|contraseña/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Nombre')).toBeInTheDocument();
+    expect(screen.getByLabelText('Apellido')).toBeInTheDocument();
+    expect(screen.getByLabelText('Correo electrónico')).toBeInTheDocument();
+    expect(screen.getByLabelText('Contraseña')).toBeInTheDocument();
     expect(
-      screen.getByLabelText(/confirm password|repeat password|repetir contraseña|confirmar/i),
+      screen.getByLabelText('Confirmar contraseña'),
     ).toBeInTheDocument();
   });
 
   it('uses required and email validation before submitting an empty or invalid login form', async () => {
     render(<App />);
 
-    const email = screen.getByLabelText(/email/i);
-    const password = screen.getByLabelText(/password|contraseña/i);
+    const email = screen.getByLabelText('Correo electrónico');
+    const password = screen.getByLabelText('Contraseña');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
     expect(email).toBeInvalid();
     expect(password).toBeInvalid();
 
     fireEvent.change(email, { target: { value: 'not-an-email' } });
     fireEvent.change(password, { target: { value: 'a-valid-password' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
 
     expect(email).toBeInvalid();
   });
@@ -82,21 +82,21 @@ describe('authentication screens', () => {
     visit(registerPath);
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Test' } });
-    fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Player' } });
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'player@example.test' } });
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Test' } });
+    fireEvent.change(screen.getByLabelText('Apellido'), { target: { value: 'Player' } });
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
     fireEvent.change(
-      screen.getByLabelText(/^password$|contraseña/i),
+      screen.getByLabelText('Contraseña'),
       { target: { value: 'first-password' } },
     );
     fireEvent.change(
-      screen.getByLabelText(/confirm password|repeat password|repetir contraseña|confirmar/i),
+      screen.getByLabelText('Confirmar contraseña'),
       { target: { value: 'different-password' } },
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
     expect(
-      screen.getByText(/passwords? (do not|don't) match|passwords? must match|contraseñas? no coinciden|contraseñas? deben coincidir/i),
+      screen.getByRole('alert'),
     ).toBeInTheDocument();
   });
 
@@ -104,20 +104,20 @@ describe('authentication screens', () => {
     visit(registerPath);
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Test' } });
-    fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Player' } });
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'player@example.test' } });
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Test' } });
+    fireEvent.change(screen.getByLabelText('Apellido'), { target: { value: 'Player' } });
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
     fireEvent.change(
-      screen.getByLabelText(/^password$|contraseña/i),
+      screen.getByLabelText('Contraseña'),
       { target: { value: 'same-password' } },
     );
     fireEvent.change(
-      screen.getByLabelText(/confirm password|repeat password|repetir contraseña|confirmar/i),
+      screen.getByLabelText('Confirmar contraseña'),
       { target: { value: 'same-password' } },
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
-    expect(await screen.findByText('Account details received.')).toBeInTheDocument();
+    expect(await screen.findByText('Recibimos los datos de tu cuenta.')).toBeInTheDocument();
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(
       expect.stringContaining('/auth/register'),
       expect.objectContaining({ method: 'POST' }),
@@ -154,9 +154,9 @@ describe('authentication screens', () => {
   it('updates the catalog actions after a successful login', async () => {
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'player@example.test' } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'safe-password' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'safe-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
 
     expect(await screen.findByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Crear cuenta' })).not.toBeInTheDocument();

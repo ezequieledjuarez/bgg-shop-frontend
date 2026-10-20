@@ -24,15 +24,15 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/a
 function validate(mode: AuthMode, values: typeof initialValues): FormErrors {
   const errors: FormErrors = {};
 
-  if (mode === 'register' && !values.firstName.trim()) errors.firstName = 'Enter your first name.';
-  if (mode === 'register' && !values.lastName.trim()) errors.lastName = 'Enter your last name.';
-  if (!values.email.trim()) errors.email = 'Enter your email address.';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) errors.email = 'Enter a valid email address.';
-  if (!values.password) errors.password = 'Enter your password.';
+  if (mode === 'register' && !values.firstName.trim()) errors.firstName = 'Ingresá tu nombre.';
+  if (mode === 'register' && !values.lastName.trim()) errors.lastName = 'Ingresá tu apellido.';
+  if (!values.email.trim()) errors.email = 'Ingresá tu correo electrónico.';
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) errors.email = 'Ingresá un correo electrónico válido.';
+  if (!values.password) errors.password = 'Ingresá tu contraseña.';
   if (mode === 'register' && !values.confirmPassword) {
-    errors.confirmPassword = 'Confirm your password.';
+    errors.confirmPassword = 'Confirmá tu contraseña.';
   } else if (mode === 'register' && values.password !== values.confirmPassword) {
-    errors.confirmPassword = 'Passwords must match.';
+    errors.confirmPassword = 'Las contraseñas deben coincidir.';
   }
 
   return errors;
@@ -127,7 +127,7 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
           const field = error.field?.[0];
           if (field) nextErrors[field] = error.message;
         }
-        setErrors(Object.keys(nextErrors).length ? nextErrors : { form: payload.errors?.[0]?.message ?? 'Authentication failed.' });
+        setErrors(Object.keys(nextErrors).length ? nextErrors : { form: payload.errors?.[0]?.message ?? 'No se pudo completar la autenticación.' });
         return;
       }
       if (isRegister) {
@@ -138,10 +138,10 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
         window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
         navigate('/');
       } else {
-        setErrors({ form: 'The authentication service returned no session.' });
+        setErrors({ form: 'El servicio de autenticación no devolvió una sesión.' });
       }
     } catch {
-      setErrors({ form: 'The authentication service is unavailable. Try again.' });
+      setErrors({ form: 'El servicio de autenticación no está disponible. Intentá nuevamente.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -150,40 +150,40 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
   return (
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="auth-title">
-        <button className="auth-back" type="button" onClick={onBack}>← Back to catalog</button>
+        <button className="auth-back" type="button" onClick={onBack}>← Volver al catálogo</button>
         <p className="auth-eyebrow">BGG Shop</p>
-        <h1 id="auth-title">{isRegister ? 'Create your account' : 'Welcome back'}</h1>
+        <h1 id="auth-title">{isRegister ? 'Creá tu cuenta' : 'Te damos la bienvenida'}</h1>
         <p className="auth-intro">
-          {isRegister ? 'Join the community of board game lovers.' : 'Sign in to continue your board game journey.'}
+          {isRegister ? 'Sumate a la comunidad de amantes de los juegos de mesa.' : 'Iniciá sesión para continuar tu recorrido por los juegos de mesa.'}
         </p>
 
         {submitted ? (
           <div className="auth-success" role="status">
-            <strong>{isRegister ? 'Account details received.' : 'Sign-in details received.'}</strong>
-            <p>{isRegister ? 'Your account was created. Redirecting to sign in…' : 'Redirecting to the catalog…'}</p>
+            <strong>{isRegister ? 'Recibimos los datos de tu cuenta.' : 'Recibimos tus datos de inicio de sesión.'}</strong>
+            <p>{isRegister ? 'Tu cuenta fue creada. Te estamos redirigiendo al inicio de sesión…' : 'Te estamos redirigiendo al catálogo…'}</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate>
             {errors.form && <p className="auth-form-error" role="alert">{errors.form}</p>}
             {isRegister && (
               <div className="auth-name-fields">
-                <Field id="firstName" label="First name" value={values.firstName} onChange={update('firstName')} error={errors.firstName} autoComplete="given-name" />
-                <Field id="lastName" label="Last name" value={values.lastName} onChange={update('lastName')} error={errors.lastName} autoComplete="family-name" />
+                <Field id="firstName" label="Nombre" value={values.firstName} onChange={update('firstName')} error={errors.firstName} autoComplete="given-name" />
+                <Field id="lastName" label="Apellido" value={values.lastName} onChange={update('lastName')} error={errors.lastName} autoComplete="family-name" />
               </div>
             )}
-            <Field id="email" label="Email address" type="email" value={values.email} onChange={update('email')} error={errors.email} autoComplete="email" />
-            <Field id="password" label="Password" type="password" value={values.password} onChange={update('password')} error={errors.password} autoComplete={isRegister ? 'new-password' : 'current-password'} />
-            {isRegister && <Field id="confirmPassword" label="Confirm password" type="password" value={values.confirmPassword} onChange={update('confirmPassword')} error={errors.confirmPassword} autoComplete="new-password" />}
+            <Field id="email" label="Correo electrónico" type="email" value={values.email} onChange={update('email')} error={errors.email} autoComplete="email" />
+            <Field id="password" label="Contraseña" type="password" value={values.password} onChange={update('password')} error={errors.password} autoComplete={isRegister ? 'new-password' : 'current-password'} />
+            {isRegister && <Field id="confirmPassword" label="Confirmar contraseña" type="password" value={values.confirmPassword} onChange={update('confirmPassword')} error={errors.confirmPassword} autoComplete="new-password" />}
             <button className="auth-submit" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Please wait…' : isRegister ? 'Create account' : 'Sign in'}
+              {isSubmitting ? 'Esperá…' : isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
             </button>
           </form>
         )}
 
         <p className="auth-switch">
-          {isRegister ? 'Already have an account?' : 'New to BGG Shop?'}{' '}
+          {isRegister ? '¿Ya tenés una cuenta?' : '¿Es tu primera vez en BGG Shop?'}{' '}
           <button type="button" onClick={() => navigate(isRegister ? '/login' : '/register')}>
-            {isRegister ? 'Sign in' : 'Create an account'}
+            {isRegister ? 'Iniciar sesión' : 'Crear una cuenta'}
           </button>
         </p>
       </section>
