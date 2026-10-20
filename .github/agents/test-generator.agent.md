@@ -4,8 +4,7 @@ description: Genera pruebas unitarias, de integración, contrato y end-to-end pa
 tools:
   - search
   - edit
-  - mcp__playwright__navigate
-  - mcp__terminal__execute_command
+  - execute
 ---
 
 # Agente generador de pruebas
@@ -48,7 +47,10 @@ Reporta pruebas creadas, escenarios cubiertos, comandos ejecutados, resultados,
 cobertura relevante, supuestos y limitaciones. Corrige solo errores de tests o
 fixtures directamente causados por el cambio solicitado.
 
-Al validar el frontend, ejecuta `npm run test:report`. Reporta la ruta del
-artefacto generado, `results/home-tests.json`, y resume el resultado de las
-pruebas. Este archivo es un artefacto local ignorado por Git y no debe
-versionarse.
+El proyecto usa Vitest. Ejecuta pruebas enfocadas con
+`npm run test -- --run <test-file>` y la suite completa con
+`npm run test -- --run`. Si se solicita un reporte JSON, usa
+`npm run test:report`; reporta `results/home-tests.json` como artefacto local
+ignorado y no lo versiones. Para comprobar los tipos generados, ejecuta
+`npm run generate:types` desde este repositorio; nunca edites manualmente
+`src/types/generated/bff-api.d.ts`.

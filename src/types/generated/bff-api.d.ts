@@ -64,10 +64,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/games/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a board-game detail by slug */
+        get: operations["getGameDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{slug}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a board-game review */
+        post: operations["createGameReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CreateReviewRequest: {
+            rating: number;
+            body: string;
+        };
+        CreateReviewResponse: {
+            created: boolean;
+            /** @enum {string} */
+            status: "PENDING";
+            /** Format: date-time */
+            created_at: string;
+        };
+        ReviewSummary: {
+            approved_review_count: number;
+            /** Format: double */
+            average_rating?: number | null;
+        };
+        ApprovedReview: {
+            rating: number;
+            body: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ProductDetail: {
+            name: string;
+            release_year: number;
+            min_players: number;
+            max_players: number;
+            playing_time_minutes: number;
+            min_age: number;
+            weight: number;
+            category: string[];
+            price: number;
+            publisher: string;
+            image_url: string;
+            review_summary: components["schemas"]["ReviewSummary"];
+            approved_reviews: components["schemas"]["ApprovedReview"][];
+        };
         RegisterRequest: {
             /** Format: email */
             email: string;
@@ -106,7 +177,7 @@ export interface components {
         };
         RegisterResponse: {
             user: components["schemas"]["AuthUser"];
-            session: components["schemas"]["AuthSession"];
+            session?: components["schemas"]["AuthSession"];
         };
         LoginResponse: {
             user: components["schemas"]["AuthUser"];
@@ -405,6 +476,108 @@ export interface operations {
                      *       "detail": "GraphQL upstream returned errors"
                      *     }
                      */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getGameDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Product detail with approved reviews. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDetail"];
+                };
+            };
+            /** @description The game does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The Core GraphQL service is unavailable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createGameReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Review created and awaiting moderation. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateReviewResponse"];
+                };
+            };
+            /** @description Review data is invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The game does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The user already reviewed this game. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
