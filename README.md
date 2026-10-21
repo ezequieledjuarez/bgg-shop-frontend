@@ -40,6 +40,27 @@ modificar y quitar artículos del carrito (`/carrito`) con el total calculado
 por el BFF. Los órdenes disponibles para el catálogo se resuelven localmente;
 la UI no expone navegación de páginas ni botones de categoría.
 
+## Lista de deseos (CU-C06)
+
+La ruta `/wishlist` requiere una sesión autenticada. Desde el detalle de un
+juego se puede guardar el producto; si la persona no inició sesión, se abre el
+login existente y se conserva la ruta de detalle para volver después de
+autenticarse. La navegación desde el catálogo incluye el `bgg_id` en la URL del
+detalle porque el DTO `ProductDetail` actual no expone ese identificador.
+
+La vista consulta `GET /api/v1/wishlist`, permite quitar elementos mediante
+`DELETE /api/v1/wishlist/{bgg_id}` y agregarlos al carrito mediante
+`POST /api/v1/cart/items`. La acción de carrito no elimina el producto de la
+lista de deseos: solo la confirmación de una compra pagada lo hace en Core.
+Todas las llamadas privadas usan el bearer token de la sesión existente; el
+Frontend no envía identificadores de usuario. La UI comunica los estados de
+carga, error, lista vacía y éxito.
+
+Las operaciones y DTO de Wishlist se generan desde
+`../bgg-shop-bff/specs/openapi.yaml` con `npm run generate:types`; no se editan
+manualmente en `src/types/generated/bff-api.d.ts`. El flujo se describe en
+[`specs/006-wishlist/spec.md`](specs/006-wishlist/spec.md).
+
 ## Compras y pagos (CU-C05)
 
 El botón **Proceder al Pago** requiere una sesión; si todavía no existe, el

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { LoginScreen, RegisterScreen } from './auth/AuthScreens';
 import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
@@ -7,6 +7,7 @@ import type { components } from './types/generated/bff-api'
 import { cartErrorMessage, cartMessages, reviewErrorMessage } from './ui/messages'
 import { CheckoutScreen } from './checkout/CheckoutScreen'
 import { OrdersScreen, PurchaseResultScreen } from './checkout/OrdersScreen'
+import { WishlistScreen } from './wishlist/WishlistScreen'
 
 type SortOrder = 'featured' | 'price-low' | 'price-high'
 
@@ -14,6 +15,7 @@ type Product = components['schemas']['Product'] & { featured?: boolean }
 type ProductPage = components['schemas']['ProductPage']
 type CartResponse = components['schemas']['CartResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
+type OrderErrorResponse = components['schemas']['OrderErrorResponse']
 type ProductDetail = components['schemas']['ProductDetail']
 type CreateReviewRequest = components['schemas']['CreateReviewRequest']
 
@@ -30,7 +32,7 @@ function formatPrice(price: number) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price)
 }
 
-function ProductCard({ product, onOpen, onAdd, adding }: { product: Product; onOpen: (name: string) => void; onAdd: (product: Product) => void; adding: boolean }) {
+function ProductCard({ product, onOpen, onAdd, adding }: { product: Product; onOpen: (product: Product) => void; onAdd: (product: Product) => void; adding: boolean }) {
   const headingId = `product-${product.bgg_id}-name`
   return (
     <article className="product-card" aria-labelledby={headingId}>
@@ -53,7 +55,7 @@ function ProductCard({ product, onOpen, onAdd, adding }: { product: Product; onO
         <p className="product-stock">{cartMessages.availableStock(product.quantity)}</p>
         <div className="product-footer">
           <strong>{formatPrice(product.price)}</strong>
-          <button className="text-button" type="button" onClick={() => onOpen(product.name)} aria-label={`Ver detalles de ${product.name}`}>
+          <button className="text-button" type="button" onClick={() => onOpen(product)} aria-label={`Ver detalles de ${product.name}`}>
             Ver detalles <span aria-hidden="true">→</span>
           </button>
         </div>
@@ -86,7 +88,7 @@ function cartRequestOptions(method: string, body?: unknown, signal?: AbortSignal
   return options
 }
 
-function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
+function ProductDetailScreen({ slug, onBack, onLogin }: { slug: string; onBack: () => void; onLogin: () => void }) {
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -95,6 +97,8 @@ function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => voi
   const [submission, setSubmission] = useState<'idle' | 'submitting' | 'success'>('idle')
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [wishlistState, setWishlistState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
+  const [wishlistMessage, setWishlistMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -114,6 +118,44 @@ function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => voi
       })
     return () => controller.abort()
   }, [slug])
+
+  const saveToWishlist = async () => {
+    if (wishlistState === 'submitting' || wishlistState === 'success') return
+    if (!readAccessToken()) {
+      onLogin()
+      return
+    }
+    const bggId = product?.bgg_id
+    if (!Number.isInteger(bggId) || !bggId || bggId < 1) {
+      setWishlistState('error')
+      setWishlistMessage('No se pudo identificar este juego para guardarlo.')
+      return
+    }
+    setWishlistState('submitting')
+    setWishlistMessage(null)
+    try {
+      const request: components['schemas']['WishlistAddRequest'] = { bgg_id: bggId }
+      const response = await fetch(`${apiBaseUrl}/wishlist`, cartRequestOptions('POST', request))
+      if (response.status === 401) {
+        onLogin()
+        return
+      }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => undefined) as ErrorResponse | OrderErrorResponse | undefined
+        const code = payload && 'errors' in payload ? payload.errors?.[0]?.code : undefined
+        setWishlistMessage(code === 'PRODUCT_NOT_FOUND'
+          ? 'No encontramos este juego.'
+          : 'No se pudo guardar el juego en tu lista de deseos. Intentá nuevamente.')
+        setWishlistState('error')
+        return
+      }
+      setWishlistState('success')
+      setWishlistMessage(`${product?.name ?? 'El juego'} se agregó a tu lista de deseos.`)
+    } catch {
+      setWishlistState('error')
+      setWishlistMessage('No se pudo conectar con el servicio. Intentá nuevamente.')
+    }
+  }
 
   const submitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -167,6 +209,12 @@ function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => voi
           <p>{product.min_players}–{product.max_players} jugadores · {product.playing_time_minutes} minutos · {product.min_age}+</p>
           <p>{cartMessages.availableStock(product.quantity)}</p>
           <strong>{formatPrice(product.price)}</strong>
+          <div className="wishlist-save-action">
+            <button className="primary-button" type="button" onClick={() => void saveToWishlist()} disabled={wishlistState === 'submitting' || wishlistState === 'success'}>
+              {wishlistState === 'submitting' ? 'Guardando...' : wishlistState === 'success' ? 'Guardado en mi lista de deseos' : 'Guardar en mi lista de deseos'}
+            </button>
+            {wishlistMessage && <p role={wishlistState === 'error' ? 'alert' : 'status'}>{wishlistMessage}</p>}
+          </div>
           <section aria-labelledby="reviews-title">
             <h2 id="reviews-title">Reseñas de la comunidad</h2>
             <p>{product.review_summary.approved_review_count} reseñas · {product.review_summary.average_rating?.toFixed(1) ?? 'Sin calificaciones'}</p>
@@ -451,6 +499,7 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
           <a href="#categorias">Categorías</a>
           <a href="#editorial">Editoriales</a>
           <a href="/carrito" onClick={(event) => { event.preventDefault(); onNavigate("/carrito") }}>{cartMessages.openCart}</a>
+          {isAuthenticated && <a href="/wishlist" onClick={(event) => { event.preventDefault(); onNavigate('/wishlist') }}>Lista de deseos</a>}
           {isAuthenticated && <a href="/mis-compras" onClick={(event) => { event.preventDefault(); onNavigate("/mis-compras") }}>Mis Compras</a>}
         </nav>
         <div className="account-actions">
@@ -545,7 +594,7 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
               <button type="button" className="primary-button" onClick={clearFilters}>Limpiar filtros</button>
             </div>
           ) : (
-            <div className="product-grid">{visibleProducts.map((product) => <ProductCard product={product} key={product.bgg_id} onOpen={(name) => { window.history.pushState({}, '', `/juegos/${slugify(name)}`); window.dispatchEvent(new PopStateEvent('popstate')) }} onAdd={addProductToCart} adding={addingProductId === product.bgg_id} />)}</div>
+            <div className="product-grid">{visibleProducts.map((product) => <ProductCard product={product} key={product.bgg_id} onOpen={(selected) => { window.history.pushState({}, '', `/juegos/${slugify(selected.name)}?bgg_id=${selected.bgg_id}`); window.dispatchEvent(new PopStateEvent('popstate')) }} onAdd={addProductToCart} adding={addingProductId === product.bgg_id} />)}</div>
           )}
         </section>
 
@@ -585,24 +634,42 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
-  const navigate = (path: string) => {
+  const navigate = useCallback((path: string) => {
     window.history.pushState({}, '', path)
     setPathname(path)
-  }
+  }, [])
 
-  const navigateToLoginAndReturn = (destination: string) => {
+  const navigateToLoginAndReturn = useCallback((destination: string) => {
     sessionStorage.setItem(pendingReturnKey, destination)
     navigate('/login')
-  }
+  }, [navigate])
+  const loginAndReturnToWishlist = useCallback(() => navigateToLoginAndReturn('/wishlist'), [navigateToLoginAndReturn])
+
+  useEffect(() => {
+    if (pathname === '/wishlist' && window.location.pathname === '/wishlist' && !readAccessToken()) {
+      sessionStorage.setItem(pendingReturnKey, '/wishlist')
+      window.history.pushState({}, '', '/login')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }
+  }, [pathname])
 
   if (pathname === '/login') return <LoginScreen onBack={() => navigate('/')} />
   if (pathname === '/register') return <RegisterScreen onBack={() => navigate('/')} />
   if (pathname === '/carrito') return <CartScreen onBack={() => navigate('/')} onNavigate={navigate} />
+  if (pathname === '/wishlist') return readAccessToken()
+    ? <WishlistScreen onBack={() => navigate('/')} onLogin={loginAndReturnToWishlist} />
+    : <LoginScreen onBack={() => navigate('/')} />
   if (pathname === '/checkout') return <CheckoutScreen onBack={() => navigate('/carrito')} onLogin={() => navigateToLoginAndReturn('/checkout')} />
   if (pathname === '/compra/resultado') return <PurchaseResultScreen />
   if (pathname === '/mis-compras') return <OrdersScreen onNavigate={navigate} />
   if (pathname.startsWith('/mis-compras/')) return <OrdersScreen orderId={decodeURIComponent(pathname.slice('/mis-compras/'.length))} onNavigate={navigate} />
-  if (pathname.startsWith('/juegos/')) return <ProductDetailScreen slug={decodeURIComponent(pathname.slice('/juegos/'.length))} onBack={() => navigate('/')} />
+  if (pathname.startsWith('/juegos/')) {
+    return <ProductDetailScreen
+      slug={decodeURIComponent(pathname.slice('/juegos/'.length))}
+      onBack={() => navigate('/')}
+      onLogin={() => navigateToLoginAndReturn(`${window.location.pathname}${window.location.search}`)}
+    />
+  }
   return <CatalogApp onNavigate={navigate} />
 }
 
