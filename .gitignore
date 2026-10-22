@@ -72,3 +72,6 @@ Thumbs.db
 # ==========================================
 *.tmp
 *.temp
+
+# Ignore Windows Zone.Identifier alternate data stream artifacts
+*.Identifier

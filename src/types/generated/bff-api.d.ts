@@ -153,6 +153,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/wishlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the authenticated customer's wishlist */
+        get: operations["listWishlist"];
+        put?: never;
+        /** Add a product to the authenticated customer's wishlist */
+        post: operations["addWishlistItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wishlist/{bgg_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a product from the authenticated customer's wishlist */
+        delete: operations["removeWishlistItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/checkout": {
         parameters: {
             query?: never;
@@ -314,6 +349,11 @@ export interface components {
             created_at: string;
         };
         ProductDetail: {
+            /**
+             * @description Public BoardGameGeek product identifier.
+             * @example 274364
+             */
+            bgg_id: number;
             name: string;
             release_year: number;
             min_players: number;
@@ -420,6 +460,16 @@ export interface components {
              * @example 10
              */
             quantity: number;
+        };
+        WishlistAddRequest: {
+            /**
+             * @description Product identifier. User identity is derived exclusively from the bearer token.
+             * @example 274364
+             */
+            bgg_id: number;
+        };
+        WishlistResponse: {
+            items: components["schemas"]["Product"][];
         };
         ProductPage: {
             items: components["schemas"]["Product"][];
@@ -1010,6 +1060,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
+                     *       "bgg_id": 274364,
                      *       "name": "Watergate",
                      *       "release_year": 2019,
                      *       "min_players": 2,
@@ -1131,6 +1182,194 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["AuthErrorResponse"];
+                };
+            };
+        };
+    };
+    listWishlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Wishlist products owned by the authenticated customer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "bgg_id": 274364,
+                     *           "name": "Watergate",
+                     *           "release_year": 2019,
+                     *           "min_players": 2,
+                     *           "max_players": 2,
+                     *           "playing_time_minutes": 60,
+                     *           "min_age": 12,
+                     *           "weight": 2.25,
+                     *           "category": [
+                     *             "Strategy"
+                     *           ],
+                     *           "price": 90000,
+                     *           "quantity": 10,
+                     *           "publisher": "Salt & Pepper Games",
+                     *           "image_url": "/media/portadas/2743640.webp"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["WishlistResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable or returned an invalid response. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    addWishlistItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "bgg_id": 274364
+                 *     }
+                 */
+                "application/json": components["schemas"]["WishlistAddRequest"];
+            };
+        };
+        responses: {
+            /** @description The added product, including the existing BFF product fields. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+            /** @description The request body is invalid or the identifier is not a positive GraphQL Int. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description The product does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable or returned an invalid response. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    removeWishlistItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Positive BoardGameGeek product identifier within GraphQL Int range.
+                 * @example 274364
+                 */
+                bgg_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The removed product, including the existing BFF product fields. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+            /** @description The identifier is not a positive GraphQL Int. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description The product does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable or returned an invalid response. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
