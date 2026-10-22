@@ -74,4 +74,4 @@ Thumbs.db
 *.temp
 
 # Ignore Windows Zone.Identifier alternate data stream artifacts
-*.Zone.Identifier
+*.Identifier
