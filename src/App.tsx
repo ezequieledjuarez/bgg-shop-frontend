@@ -5,6 +5,8 @@ import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
 import './App.css';
 import type { components } from './types/generated/bff-api'
 import { cartErrorMessage, cartMessages, reviewErrorMessage } from './ui/messages'
+import { CheckoutScreen } from './checkout/CheckoutScreen'
+import { OrdersScreen, PurchaseResultScreen } from './checkout/OrdersScreen'
 
 type SortOrder = 'featured' | 'price-low' | 'price-high'
 
@@ -14,6 +16,8 @@ type CartResponse = components['schemas']['CartResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
 type ProductDetail = components['schemas']['ProductDetail']
 type CreateReviewRequest = components['schemas']['CreateReviewRequest']
+
+const pendingReturnKey = 'bgg-shop.pending-return'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1'
 
@@ -194,7 +198,7 @@ function ProductDetailScreen({ slug, onBack }: { slug: string; onBack: () => voi
 }
 
 
-function CartScreen({ onBack }: { onBack: () => void }) {
+function CartScreen({ onBack, onNavigate }: { onBack: () => void; onNavigate: (path: string) => void }) {
   const [cart, setCart] = useState<CartResponse | null>(null)
   const [loadState, setLoadState] = useState<"loading" | "error" | "success">("loading")
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -202,6 +206,7 @@ function CartScreen({ onBack }: { onBack: () => void }) {
   const [pendingId, setPendingId] = useState<number | null>(null)
   const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({})
   const [retry, setRetry] = useState(0)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -306,6 +311,11 @@ function CartScreen({ onBack }: { onBack: () => void }) {
             <h2>{cartMessages.total}</h2>
             <strong>{formatPrice(cart.total)}</strong>
           </section>
+          {showLoginPrompt && <p role="status">Iniciá sesión para continuar con tu compra. <a href="/login" onClick={(event) => { event.preventDefault(); sessionStorage.setItem(pendingReturnKey, '/checkout'); onNavigate('/login') }}>Iniciar sesión</a></p>}
+          <button className="primary-button" type="button" disabled={cart.lines.length === 0 || pendingId !== null} onClick={() => {
+            if (!readAccessToken()) setShowLoginPrompt(true)
+            else onNavigate('/checkout')
+          }}>Proceder al Pago</button>
         </>
       ) : null}
     </main>
@@ -441,6 +451,7 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
           <a href="#categorias">Categorías</a>
           <a href="#editorial">Editoriales</a>
           <a href="/carrito" onClick={(event) => { event.preventDefault(); onNavigate("/carrito") }}>{cartMessages.openCart}</a>
+          {isAuthenticated && <a href="/mis-compras" onClick={(event) => { event.preventDefault(); onNavigate("/mis-compras") }}>Mis Compras</a>}
         </nav>
         <div className="account-actions">
           {isAuthenticated ? (
@@ -558,7 +569,18 @@ function App() {
   const [pathname, setPathname] = useState(window.location.pathname)
 
   useEffect(() => {
-    const handlePopState = () => setPathname(window.location.pathname)
+    const handlePopState = () => {
+      let nextPath = window.location.pathname
+      if (nextPath === '/' && readAccessToken()) {
+        const destination = sessionStorage.getItem(pendingReturnKey)
+        if (destination) {
+          sessionStorage.removeItem(pendingReturnKey)
+          window.history.pushState({}, '', destination)
+          nextPath = destination
+        }
+      }
+      setPathname(nextPath)
+    }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
@@ -568,9 +590,18 @@ function App() {
     setPathname(path)
   }
 
+  const navigateToLoginAndReturn = (destination: string) => {
+    sessionStorage.setItem(pendingReturnKey, destination)
+    navigate('/login')
+  }
+
   if (pathname === '/login') return <LoginScreen onBack={() => navigate('/')} />
   if (pathname === '/register') return <RegisterScreen onBack={() => navigate('/')} />
-  if (pathname === '/carrito') return <CartScreen onBack={() => navigate('/')} />
+  if (pathname === '/carrito') return <CartScreen onBack={() => navigate('/')} onNavigate={navigate} />
+  if (pathname === '/checkout') return <CheckoutScreen onBack={() => navigate('/carrito')} onLogin={() => navigateToLoginAndReturn('/checkout')} />
+  if (pathname === '/compra/resultado') return <PurchaseResultScreen />
+  if (pathname === '/mis-compras') return <OrdersScreen onNavigate={navigate} />
+  if (pathname.startsWith('/mis-compras/')) return <OrdersScreen orderId={decodeURIComponent(pathname.slice('/mis-compras/'.length))} onNavigate={navigate} />
   if (pathname.startsWith('/juegos/')) return <ProductDetailScreen slug={decodeURIComponent(pathname.slice('/juegos/'.length))} onBack={() => navigate('/')} />
   return <CatalogApp onNavigate={navigate} />
 }

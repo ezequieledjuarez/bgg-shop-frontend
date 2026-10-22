@@ -37,9 +37,27 @@ el contrato y ejemplos ejecutables, véanse
 
 El Frontend muestra el stock (`quantity`) de cada juego y permite agregar,
 modificar y quitar artículos del carrito (`/carrito`) con el total calculado
-por el BFF. No implementa checkout, pedidos ni pago. La UI no expone navegación de páginas ni botones de
-categoría; el orden de relevancia no está implementado y los órdenes
-disponibles se resuelven localmente.
+por el BFF. Los órdenes disponibles para el catálogo se resuelven localmente;
+la UI no expone navegación de páginas ni botones de categoría.
+
+## Compras y pagos (CU-C05)
+
+El botón **Proceder al Pago** requiere una sesión; si todavía no existe, el
+frontend ofrece iniciar sesión y conserva el destino de checkout. La ruta
+`/checkout` captura la modalidad de entrega (`standard` o `pickup`) y valida en
+el cliente los datos obligatorios de envío estándar. Envía `POST /api/v1/checkout` con el bearer token de sesión y redirige el navegador a
+`init_point`; no contiene ni almacena credenciales de Mercado Pago.
+
+La ruta `/compra/resultado` admite `payment_id` o `collection_id`, junto con
+`external_reference` o `order_id`, y solicita al BFF confirmar el pago. Muestra
+el resultado aprobado, rechazado, pendiente o el conflicto de stock pagado. Los
+pedidos se consultan en `/mis-compras` y `/mis-compras/{id}`. La factura PDF se
+solicita con bearer token y se descarga como archivo; no se expone como una
+URL pública sin autenticación.
+
+Los DTO de checkout, pago y pedidos se generan desde
+`../bgg-shop-bff/specs/openapi.yaml` mediante `npm run generate:types`; no se
+mantienen copias manuales de esos contratos.
 
 El alcance, los contratos y las limitaciones verificadas están documentados en
 [`../docs/CU-C02-FILTERING-CHANGES.md`](../docs/CU-C02-FILTERING-CHANGES.md).

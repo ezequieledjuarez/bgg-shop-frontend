@@ -153,6 +153,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an order and initialize checkout payment */
+        post: operations["checkout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/checkout/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm payment with Core and return the order */
+        post: operations["confirmCheckoutPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the authenticated customer's orders */
+        get: operations["listOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an owned order with lines and payment details */
+        get: operations["getOrder"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{order_id}/retry-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Initialize a new payment attempt for a rejected order */
+        post: operations["retryOrderPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{order_id}/invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the authenticated customer's invoice PDF */
+        get: operations["downloadOrderInvoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -329,6 +431,82 @@ export interface components {
             total: number;
             /** @example 1 */
             total_pages: number;
+        };
+        CheckoutRequest: {
+            /** @enum {string} */
+            shipping_mode: "standard" | "pickup";
+            address?: components["schemas"]["ShippingAddress"];
+        };
+        ShippingAddress: {
+            recipient?: string;
+            street?: string;
+            city?: string;
+            postal_code?: string;
+            phone?: string;
+        };
+        ConfirmPaymentRequest: {
+            /** Format: uuid */
+            order_id: string;
+            payment_id: string | number;
+        };
+        CheckoutResponse: {
+            order: components["schemas"]["PurchaseOrder"];
+            /** Format: uri */
+            init_point: string;
+        };
+        OrderResponse: {
+            order: components["schemas"]["PurchaseOrder"];
+        };
+        OrderListResponse: {
+            orders: components["schemas"]["PurchaseOrder"][];
+        };
+        PurchaseOrder: {
+            /** Format: uuid */
+            id: string;
+            status: string;
+            /** Format: float */
+            total: number;
+            currency: string;
+            /** @enum {string} */
+            shipping_mode: "standard" | "pickup";
+            recipient?: string | null;
+            street?: string | null;
+            city?: string | null;
+            postal_code?: string | null;
+            phone?: string | null;
+            payment_status?: string | null;
+            /** @description Payment provider detail, including rejection reason. */
+            payment_status_detail?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            paid_at?: string | null;
+            lines: components["schemas"]["PurchaseOrderLine"][];
+            invoice?: components["schemas"]["Invoice"] | null;
+        };
+        PurchaseOrderLine: {
+            bgg_id: number;
+            name: string;
+            /** Format: float */
+            unit_price: number;
+            quantity: number;
+            /** Format: float */
+            subtotal: number;
+        };
+        Invoice: {
+            /** Format: int64 */
+            number: number;
+            /** Format: date-time */
+            issued_at: string;
+            /** Format: float */
+            total: number;
+        };
+        OrderErrorResponse: {
+            errors: {
+                code: string;
+                message: string;
+                field?: string[] | null;
+            }[];
         };
         ErrorResponse: {
             /**
@@ -953,6 +1131,382 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["AuthErrorResponse"];
+                };
+            };
+        };
+    };
+    checkout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Order and Mercado Pago checkout URL. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutResponse"];
+                };
+            };
+            /** @description Request or shipping details are invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Current cart contents exceed available stock. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Cart is empty or the order cannot be paid. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable or payment initialization failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] | components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Payments are not configured in Core. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+        };
+    };
+    confirmCheckoutPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmPaymentRequest"];
+            };
+        };
+        responses: {
+            /** @description Confirmed, pending, or rejected payment state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Request or payment identifier is invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description The order does not exist or is not owned by the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Core could not verify this payment for the order. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listOrders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Orders belonging to the authenticated customer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderListResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Order detail including shipping, invoice metadata, and rejection reason. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description The order identifier is not a UUID. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description The order does not exist or is not owned by the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retryOrderPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Order and new checkout URL. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutResponse"];
+                };
+            };
+            /** @description The order identifier is not a UUID. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description The order does not exist or is not owned by the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description The order cannot be paid again. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable or payment initialization failed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] | components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Payments are not configured in Core. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+        };
+    };
+    downloadOrderInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invoice PDF streamed from Core. */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description The order identifier is not a UUID. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description No invoice is available for this owned order. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Core is unavailable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
