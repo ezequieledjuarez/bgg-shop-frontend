@@ -56,3 +56,21 @@ export const cartMessages = {
 export function cartErrorMessage() {
   return "No se pudo completar la operación del carrito. Intentá nuevamente."
 }
+
+
+export function purchaseErrorMessage(code?: string) {
+  switch (code) {
+    case 'PAYMENTS_DISABLED':
+      return 'Los pagos están temporalmente deshabilitados. Intentá nuevamente más tarde.'
+    case 'INSUFFICIENT_STOCK':
+      return 'No hay stock suficiente para completar la compra. Revisá tu carrito.'
+    case 'EMPTY_CART':
+      return 'Tu carrito está vacío. Agregá juegos antes de proceder al pago.'
+    case 'UNAUTHENTICATED':
+      return 'Iniciá sesión para continuar con tu compra.'
+    case 'ADDRESS_REQUIRED':
+      return 'Completá los datos de envío requeridos.'
+    default:
+      return 'No se pudo completar la operación. Intentá nuevamente.'
+  }
+}
