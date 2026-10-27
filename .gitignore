@@ -75,3 +75,11 @@ Thumbs.db
 
 # Ignore Windows Zone.Identifier alternate data stream artifacts
 *.Identifier
+
+# Test diagnostics/artifacts
+**/diagnostics/
+**/diagnostics/*.json
+**/diagnostics/*.txt
+tests/e2e/storageState.json
+tests/e2e/*.json
+tests/e2e/*.txt
