@@ -81,5 +81,8 @@ Thumbs.db
 **/diagnostics/*.json
 **/diagnostics/*.txt
 tests/e2e/storageState.json
-tests/e2e/*.json
-tests/e2e/*.txt
+# Ignore any e2e-generated artifacts in nested folders
+tests/e2e/**
+# Fixtures used by local tests (not part of source)
+tests/fixtures/*.json
+tests/fixtures/*.txt
