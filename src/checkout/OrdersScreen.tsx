@@ -125,6 +125,7 @@ export function PurchaseResultScreen() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState(false)
+  const [retryBlocked, setRetryBlocked] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const requests = useRef(new Map<string, Promise<PurchaseOrder>>())
 
@@ -150,13 +151,14 @@ export function PurchaseResultScreen() {
   }, [attempt, orderId, paymentId])
 
   const retryPayment = async () => {
-    if (!order || retrying) return
+    if (!order || retrying || retryBlocked) return
     setRetrying(true)
     setError(null)
     try {
       const response = await fetch(`${apiBaseUrl}/orders/${encodeURIComponent(order.id)}/retry-payment`, purchaseRequestOptions('POST'))
       if (!response.ok) {
         const apiError = await orderError(response)
+        if (apiError?.code === 'PENDING_PAYMENT' || apiError?.code === 'PAYMENT_REQUIRES_REVIEW') setRetryBlocked(true)
         throw new Error(purchaseErrorMessage(apiError?.code))
       }
       const payload = await response.json() as components['schemas']['CheckoutResponse']
@@ -183,7 +185,7 @@ export function PurchaseResultScreen() {
     <h1 id="purchase-result-title">No se pudo aprobar el pago</h1>
     <p role="alert">{order.payment_status_detail ? `Motivo informado: ${order.payment_status_detail}` : 'El medio de pago rechazó la operación.'}</p>
     {error && <p role="alert">{error}</p>}
-    <button className="primary-button" type="button" onClick={() => void retryPayment()} disabled={retrying}>{retrying ? 'Preparando el pago…' : 'Reintentar pago'}</button>
+    <button className="primary-button" type="button" onClick={() => void retryPayment()} disabled={retrying || retryBlocked}>{retrying ? 'Preparando el pago…' : 'Reintentar pago'}</button>
   </main>
 
   if (order.status !== 'paid') return <main className="purchase-page" aria-labelledby="purchase-result-title">

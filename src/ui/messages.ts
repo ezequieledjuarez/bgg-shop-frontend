@@ -70,6 +70,10 @@ export function purchaseErrorMessage(code?: string) {
       return 'Iniciá sesión para continuar con tu compra.'
     case 'ADDRESS_REQUIRED':
       return 'Completá los datos de envío requeridos.'
+    case 'PENDING_PAYMENT':
+      return 'Hay un intento de pago pendiente de revisión. No inicies otro pago.'
+    case 'PAYMENT_REQUIRES_REVIEW':
+      return 'Tu pago requiere revisión. Contactá a soporte y no vuelvas a pagar.'
     default:
       return 'No se pudo completar la operación. Intentá nuevamente.'
   }

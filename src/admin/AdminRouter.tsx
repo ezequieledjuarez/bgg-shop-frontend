@@ -1,11 +1,11 @@
-import React from 'react'
-
 import ProductsList from './products/ProductsList'
 import ProductForm from './products/ProductForm'
 import PromotionsPanel from './promotions/PromotionsPanel'
+import GiftCardForm from './giftcards/GiftCardForm'
 
 export default function AdminRouter({ path }: { path?: string }) {
   const pathname = path ?? window.location.pathname
+  if (pathname === '/admin/gift-cards') return <GiftCardForm />
   // /admin/products/new -> new form
   if (pathname.startsWith('/admin/products/new')) return <ProductForm />
   // /admin/products/:id -> edit form
@@ -18,7 +18,7 @@ export default function AdminRouter({ path }: { path?: string }) {
     <main>
       <h1>Admin</h1>
       <nav>
-        <a href="/admin/products">Productos</a> | <a href="/admin/promotions">Promociones</a>
+        <a href="/admin/products">Productos</a> | <a href="/admin/promotions">Promociones</a> | <a href="/admin/gift-cards">Gift cards</a>
       </nav>
     </main>
   )

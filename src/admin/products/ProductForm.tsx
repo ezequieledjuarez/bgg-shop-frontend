@@ -75,20 +75,6 @@ export default function ProductForm() {
     return
   }, [editingId])
 
-  const validate = () => {
-    const next: FieldErrors = {}
-    if (!name.trim()) next.name = 'El nombre es obligatorio'
-    const p = Number(price)
-    if (!price || Number.isNaN(p) || p <= 0) next.price = 'Precio inválido'
-    const q = Number(quantity)
-    if (!Number.isInteger(q) || q < 0) next.quantity = 'Cantidad inválida'
-    // Optional numeric validations
-    if (bggId && (!Number.isInteger(Number(bggId)) || Number(bggId) <= 0)) next.bggId = 'BGG ID inválido'
-    if (releaseYear && (!Number.isInteger(Number(releaseYear)) || Number(releaseYear) < 1800)) next.releaseYear = 'Año inválido'
-    setErrors(next)
-    return Object.keys(next).length === 0
-  }
-
   const handleServerErrors = async (response: Response) => {
     try {
       const payload = await response.json()
@@ -110,7 +96,6 @@ export default function ProductForm() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     // Read current DOM values to avoid relying on potentially batched/async state updates
-    const form = event.currentTarget as HTMLFormElement
     const el = (id: string) => document.getElementById(id) as HTMLInputElement | null
     const nameVal = el('product-name')?.value || ''
     const priceVal = el('product-price')?.value || ''

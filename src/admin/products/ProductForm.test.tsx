@@ -1,8 +1,5 @@
-import { vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import ProductForm from './ProductForm'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { vi } from 'vitest'
 import ProductForm from './ProductForm'
 
 describe('ProductForm', () => {
@@ -12,7 +9,7 @@ describe('ProductForm', () => {
     // provide a fake session token so apiFetch doesn't block on auth
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
   })
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('shows validation errors for empty fields', async () => {
     render(<ProductForm />)
