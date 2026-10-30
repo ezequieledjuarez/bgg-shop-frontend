@@ -42,7 +42,7 @@ try {
   } catch (e) {
     // ignore
   }
-  (globalThis as any).fetch = function (input: any, init?: any) {
+  (globalThis as any).fetch = function (_input: any, init?: any) {
     try {
       if (init && init.signal) {
         // Aggressively remove any provided signal in tests to avoid cross-realm

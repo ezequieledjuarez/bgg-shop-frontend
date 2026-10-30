@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh a customer access token
+         * @description Uses the refresh_token cookie or an optional request body token. A nonempty body token takes precedence. On success, a returned refresh token is rotated in an HttpOnly cookie and only the access token is returned in JSON.
+         */
+        post: operations["refreshAccessToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products": {
         parameters: {
             query?: never;
@@ -188,6 +208,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the authenticated buyer's available credit
+         * @description Returns a balance of 0.00 ARS when no credit exists for the buyer. All error fields must be sanitized and must never contain gift card codes or bearer tokens.
+         */
+        get: operations["getCreditBalance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gift-cards/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redeem a gift card into the authenticated buyer's credit
+         * @description The card is consumed and its full value is credited atomically. Gift card codes and bearer tokens must not be logged. Codes must not be included in URLs or returned in responses. All error fields must be sanitized and must never contain gift card codes or bearer tokens. Invalid and already redeemed codes must produce indistinguishable errors.
+         */
+        post: operations["redeemGiftCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/checkout/credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create and pay for an order using account credit
+         * @description The authenticated buyer is determined from the bearer token and the server calculates the total. Order creation, credit debit, stock decrement, invoice creation, and purchased cart quantity updates are atomic. Insufficient credit or stock causes no partial changes. No payment provider is called. A pending Mercado Pago order owned by the buyer blocks a new credit checkout. After the pending order is resolved, start a new attempt with a new key. A 400 INVALID response is a local validation rejection and does not establish whether an earlier request with the key completed. If an earlier outcome is unknown, retry the original request with the same key. A 400 ADDRESS_REQUIRED_RECORDED response is a Core rejection recorded against the key; retrying the same payload returns that rejection while its record is retained, and corrected input requires a new key during that period. The older ADDRESS_REQUIRED code is ambiguous and does not confirm whether the key was recorded. All error fields must be sanitized and must never contain gift card codes or bearer tokens.
+         */
+        post: operations["checkoutWithCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/checkout": {
         parameters: {
             query?: never;
@@ -265,7 +345,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Initialize a new payment attempt for a rejected order */
+        /**
+         * Initialize a new payment attempt for an eligible order
+         * @description Rejected or pending orders can be retried when they have no unresolved payment attempt, unreleased payment review, or credit retry guard. An unresolved attempt returns PENDING_PAYMENT. An unreleased payment review returns PAYMENT_REQUIRES_REVIEW and does not unblock automatically.
+         */
         post: operations["retryOrderPayment"];
         delete?: never;
         options?: never;
@@ -290,10 +373,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/gift-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a single-use gift card
+         * @description Creates a card for an administrator and returns its code only once. The code must not be logged or cached. Repeated requests create separate cards. All error fields must be sanitized and must never contain gift card codes or bearer tokens.
+         */
+        post: operations["adminCreateGiftCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AuthRefreshRequest: {
+            refresh_token?: string;
+        };
+        AuthRefreshResponse: {
+            access_token: string;
+        };
+        AuthRefreshErrorResponse: {
+            detail: string;
+        };
+        /** @description All error fields must be sanitized and must never contain gift card codes or bearer tokens. */
+        CreditErrorResponse: {
+            errors: {
+                code: string;
+                /** @description Sanitized public error message. */
+                message: string;
+                field?: string[] | null;
+            }[];
+        };
+        CreditUpstreamError: {
+            /** @enum {string} */
+            error: "Credit service unavailable";
+        };
+        CreditBalance: {
+            /**
+             * @description Available balance as a decimal string with two fractional digits.
+             * @example 20000.00
+             */
+            balance: string;
+            /** @enum {string} */
+            currency: "ARS";
+        };
+        RedeemGiftCardRequest: {
+            /** @description Sensitive single-use gift card code. */
+            code: string;
+        };
+        CreditCheckoutResponse: {
+            order: components["schemas"]["PurchaseOrder"] & {
+                /** @enum {string} */
+                status: "paid";
+                invoice: components["schemas"]["Invoice"];
+            };
+            credit: components["schemas"]["CreditBalance"];
+        };
+        AdminGiftCardCreateRequest: {
+            /**
+             * @description Positive amount in ARS, with up to two decimal places.
+             * @example 20000.00
+             */
+            amount: string;
+        };
+        AdminGiftCardCreateResponse: {
+            /** Format: uuid */
+            id: string;
+            /** @description Sensitive redemption code returned only once. */
+            code: string;
+            /** @example 20000.00 */
+            amount: string;
+            /** @enum {string} */
+            currency: "ARS";
+        };
         CartItemRequest: {
             /** @description BoardGameGeek product identifier. */
             bgg_id: number;
@@ -487,6 +650,7 @@ export interface components {
             shipping_mode: "standard" | "pickup";
             address?: components["schemas"]["ShippingAddress"];
         };
+        /** @description Limits apply to the supplied strings before trimming. Mercado Pago checkout trims the fields; credit checkout preserves the submitted values for idempotency. For standard delivery, recipient, street, city, and postal code must contain non-whitespace characters. Explicit null values are not accepted. */
         ShippingAddress: {
             recipient?: string;
             street?: string;
@@ -571,8 +735,41 @@ export interface components {
             detail?: string;
         };
     };
-    responses: never;
+    responses: {
+        /** @description Sanitized error for an invalid request body or idempotency key. */
+        CreditInvalidRequest: {
+            headers: {
+                "Cache-Control": components["headers"]["CreditCacheControl"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["CreditErrorResponse"];
+            };
+        };
+        /** @description Sanitized error for a missing or invalid bearer token. */
+        CreditUnauthorized: {
+            headers: {
+                "Cache-Control": components["headers"]["CreditCacheControl"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["CreditErrorResponse"];
+            };
+        };
+        /** @description Core is unavailable or returned an invalid response. For POST requests the outcome may be unknown; retry the same request with the same idempotency key. The response must not include upstream information, gift card codes, or tokens. */
+        CreditUpstreamFailure: {
+            headers: {
+                "Cache-Control": components["headers"]["CreditCacheControl"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["CreditUpstreamError"];
+            };
+        };
+    };
     parameters: {
+        /** @description Client-generated UUID scoped to the authenticated buyer and operation. A repeated request with the same key and payload returns the original successful response snapshot without repeating effects, with no expiration. Core retains recorded rejections for 30 days; after expiration the key may be processed as a new request. A different payload reaching Core's idempotency check while a record exists returns 409. Validation in the BFF or Core may reject a request before that check. If the outcome is unknown after an upstream failure, retry the same request with the same key. Never persist raw card codes. */
+        CreditIdempotencyKey: string;
         /** @description Opaque guest cart identifier issued by the BFF in an HttpOnly, SameSite=Lax cookie. The default name is cart_id and can be changed with CART_COOKIE_NAME. Secure defaults on outside debug/development and is configurable with CART_COOKIE_SECURE. This is not a user identifier; Core selects authenticated carts from the Bearer token. */
         GuestCartCookie: string;
         /** @description Case-insensitive search over product name or publisher. */
@@ -596,12 +793,15 @@ export interface components {
         Page: number;
         /**
          * @description Number of products per page.
-         * @example 20
+         * @example 50
          */
         PageSize: number;
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Prevents credit responses from being cached. */
+        CreditCacheControl: "no-store";
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -713,6 +913,52 @@ export interface operations {
             };
         };
     };
+    refreshAccessToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                refresh_token?: string;
+            };
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AuthRefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Access token refreshed; the refresh cookie is rotated when Core returns one. */
+            200: {
+                headers: {
+                    /** @description Rotated HttpOnly refresh_token cookie when available. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthRefreshResponse"];
+                };
+            };
+            /** @description The refresh token is missing or rejected; the refresh cookie is cleared. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthRefreshErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable or returned an invalid response. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthRefreshErrorResponse"];
+                };
+            };
+        };
+    };
     listProducts: {
         parameters: {
             query?: {
@@ -723,7 +969,7 @@ export interface operations {
                 page?: components["parameters"]["Page"];
                 /**
                  * @description Number of products per page.
-                 * @example 20
+                 * @example 50
                  */
                 page_size?: components["parameters"]["PageSize"];
                 /** @description Case-insensitive search over product name or publisher. */
@@ -1374,6 +1620,131 @@ export interface operations {
             };
         };
     };
+    getCreditBalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current available credit. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CreditCacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditBalance"];
+                };
+            };
+            401: components["responses"]["CreditUnauthorized"];
+            502: components["responses"]["CreditUpstreamFailure"];
+        };
+    };
+    redeemGiftCard: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID scoped to the authenticated buyer and operation. A repeated request with the same key and payload returns the original successful response snapshot without repeating effects, with no expiration. Core retains recorded rejections for 30 days; after expiration the key may be processed as a new request. A different payload reaching Core's idempotency check while a record exists returns 409. Validation in the BFF or Core may reject a request before that check. If the outcome is unknown after an upstream failure, retry the same request with the same key. Never persist raw card codes. */
+                "Idempotency-Key": components["parameters"]["CreditIdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RedeemGiftCardRequest"];
+            };
+        };
+        responses: {
+            /** @description Balance snapshot at the time of redemption. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CreditCacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditBalance"];
+                };
+            };
+            400: components["responses"]["CreditInvalidRequest"];
+            401: components["responses"]["CreditUnauthorized"];
+            /** @description Sanitized error when the idempotency key was previously used for a different request. */
+            409: {
+                headers: {
+                    "Cache-Control": components["headers"]["CreditCacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditErrorResponse"];
+                };
+            };
+            /** @description Sanitized error when the card cannot be redeemed; invalid and used codes return the same error. */
+            422: {
+                headers: {
+                    "Cache-Control": components["headers"]["CreditCacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditErrorResponse"];
+                };
+            };
+            502: components["responses"]["CreditUpstreamFailure"];
+        };
+    };
+    checkoutWithCredit: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID scoped to the authenticated buyer and operation. A repeated request with the same key and payload returns the original successful response snapshot without repeating effects, with no expiration. Core retains recorded rejections for 30 days; after expiration the key may be processed as a new request. A different payload reaching Core's idempotency check while a record exists returns 409. Validation in the BFF or Core may reject a request before that check. If the outcome is unknown after an upstream failure, retry the same request with the same key. Never persist raw card codes. */
+                "Idempotency-Key": components["parameters"]["CreditIdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Paid order and balance snapshot at the time of purchase. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CreditCacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditCheckoutResponse"];
+                };
+            };
+            400: components["responses"]["CreditInvalidRequest"];
+            401: components["responses"]["CreditUnauthorized"];
+            /** @description Sanitized error for insufficient credit or stock, a pending payment (PENDING_PAYMENT), or an idempotency key conflict. */
+            409: {
+                headers: {
+                    "Cache-Control": components["headers"]["CreditCacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditErrorResponse"];
+                };
+            };
+            /** @description Sanitized error when the cart is empty or the order cannot be paid. */
+            422: {
+                headers: {
+                    "Cache-Control": components["headers"]["CreditCacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditErrorResponse"];
+                };
+            };
+            502: components["responses"]["CreditUpstreamFailure"];
+        };
+    };
     checkout: {
         parameters: {
             query?: never;
@@ -1494,6 +1865,15 @@ export interface operations {
             };
             /** @description The order does not exist or is not owned by the caller. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description An approved payment requires manual review (PAYMENT_REQUIRES_REVIEW); no automatic refund is performed. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1664,6 +2044,15 @@ export interface operations {
                     "application/json": components["schemas"]["OrderErrorResponse"];
                 };
             };
+            /** @description A payment attempt requires reconciliation (PENDING_PAYMENT), or a payment requires manual review (PAYMENT_REQUIRES_REVIEW). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
             /** @description The order cannot be paid again. */
             422: {
                 headers: {
@@ -1740,6 +2129,71 @@ export interface operations {
                 content?: never;
             };
             /** @description Core is unavailable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    adminCreateGiftCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminGiftCardCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Gift card issued; the code is returned only once. */
+            201: {
+                headers: {
+                    /**
+                     * @description Prevents the response containing the card code from being cached.
+                     * @example no-store
+                     */
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminGiftCardCreateResponse"];
+                };
+            };
+            /** @description Invalid amount or request body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Administrator permission required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Core unavailable or invalid response; issuance outcome may be unknown. */
             502: {
                 headers: {
                     [name: string]: unknown;

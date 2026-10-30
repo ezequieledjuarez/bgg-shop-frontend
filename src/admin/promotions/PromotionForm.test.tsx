@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react'
-import { vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PromotionForm from './PromotionForm'
 
 describe('PromotionForm', () => {
@@ -8,7 +8,7 @@ describe('PromotionForm', () => {
     // provide a fake session token so apiFetch doesn't block on auth
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
   })
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('validates required fields', async () => {
     render(<PromotionForm />)

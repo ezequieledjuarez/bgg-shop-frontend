@@ -8,6 +8,7 @@ import { cartErrorMessage, cartMessages, reviewErrorMessage } from './ui/message
 import { CheckoutScreen } from './checkout/CheckoutScreen'
 import { OrdersScreen, PurchaseResultScreen } from './checkout/OrdersScreen'
 import { WishlistScreen } from './wishlist/WishlistScreen'
+import AdminRouter from './admin/AdminRouter'
 
 type SortOrder = 'featured' | 'price-low' | 'price-high'
 
@@ -646,8 +647,8 @@ function App() {
   const loginAndReturnToWishlist = useCallback(() => navigateToLoginAndReturn('/wishlist'), [navigateToLoginAndReturn])
 
   useEffect(() => {
-    if (pathname === '/wishlist' && window.location.pathname === '/wishlist' && !readAccessToken()) {
-      sessionStorage.setItem(pendingReturnKey, '/wishlist')
+    if ((pathname === '/wishlist' || pathname.startsWith('/admin')) && window.location.pathname === pathname && !readAccessToken()) {
+      sessionStorage.setItem(pendingReturnKey, pathname)
       window.history.pushState({}, '', '/login')
       window.dispatchEvent(new PopStateEvent('popstate'))
     }
@@ -655,11 +656,12 @@ function App() {
 
   if (pathname === '/login') return <LoginScreen onBack={() => navigate('/')} />
   if (pathname === '/register') return <RegisterScreen onBack={() => navigate('/')} />
+  if (pathname.startsWith('/admin')) return readAccessToken() ? <AdminRouter path={pathname} /> : <LoginScreen onBack={() => navigate('/')} />
   if (pathname === '/carrito') return <CartScreen onBack={() => navigate('/')} onNavigate={navigate} />
   if (pathname === '/wishlist') return readAccessToken()
     ? <WishlistScreen onBack={() => navigate('/')} onLogin={loginAndReturnToWishlist} />
     : <LoginScreen onBack={() => navigate('/')} />
-  if (pathname === '/checkout') return <CheckoutScreen onBack={() => navigate('/carrito')} onLogin={() => navigateToLoginAndReturn('/checkout')} />
+  if (pathname === '/checkout') return <CheckoutScreen onBack={() => navigate('/carrito')} onLogin={() => navigateToLoginAndReturn('/checkout')} onOrder={(id) => navigate(`/mis-compras/${encodeURIComponent(id)}`)} />
   if (pathname === '/compra/resultado') return <PurchaseResultScreen />
   if (pathname === '/mis-compras') return <OrdersScreen onNavigate={navigate} />
   if (pathname.startsWith('/mis-compras/')) return <OrdersScreen orderId={decodeURIComponent(pathname.slice('/mis-compras/'.length))} onNavigate={navigate} />

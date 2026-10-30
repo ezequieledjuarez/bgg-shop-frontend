@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 type ProductSummary = {
   id: number
@@ -18,8 +18,6 @@ export default function ProductsList() {
 
     const waitForToken = async (timeout = 3000, interval = 100) => {
       const start = Date.now()
-      // eslint-disable-next-line no-console
-      console.info('RAW sessionStorage bgg-shop.session=', sessionStorage.getItem('bgg-shop.session'))
       while (Date.now() - start < timeout) {
         try {
           const s = JSON.parse(sessionStorage.getItem('bgg-shop.session') ?? '{}') as { access_token?: string }
@@ -37,9 +35,6 @@ export default function ProductsList() {
       const token = await waitForToken()
       const headers: Record<string, string> = {}
       if (token) headers.Authorization = `Bearer ${token}`
-      // Debug: log headers used for admin list fetch
-      // eslint-disable-next-line no-console
-      console.info('Admin products list fetch headers', headers)
       try {
         const res = await fetch(`${base}/admin/products?page=1&page_size=50`, { signal: controller.signal, headers })
         if (!res.ok) throw new Error('No se pudo cargar la lista de productos')
@@ -47,16 +42,9 @@ export default function ProductsList() {
         // Support different API shapes: { items: [...] } or { results: [...] }
         const items: ProductSummary[] = payload.items || payload.results || []
         setProducts(items)
-        } catch (err: unknown) {
-          if (err instanceof DOMException && err.name === 'AbortError') return
-          // Provide descriptive debug info for QA
-          try {
-            // eslint-disable-next-line no-console
-            console.error('[ProductsList] fetch error', { url: `${base}/admin/products`, filters: { page: 1, page_size: 50 }, error: err })
-          } catch (e) {
-            // ignore logging errors
-          }
-          setError(err instanceof Error ? err.message : 'Error desconocido')
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setError('No se pudo cargar la lista de productos')
       } finally {
         setLoading(false)
       }
