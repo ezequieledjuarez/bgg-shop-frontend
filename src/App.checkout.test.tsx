@@ -909,7 +909,7 @@ describe('purchase checkout and orders', () => {
     server.use(http.get('*/api/v1/cart', () => HttpResponse.json(cart)))
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Proceder al Pago' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('Iniciá sesión para continuar con tu compra.')
+    expect(await screen.findByText('Iniciá sesión para continuar con tu compra.')).toHaveAttribute('role', 'status')
     expect(checkoutCalls).toBe(0)
   })
 
@@ -1000,6 +1000,17 @@ describe('purchase checkout and orders', () => {
     expect(await screen.findByRole('heading', { name: 'Pago pendiente' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Verificar de nuevo' }))
     await waitFor(() => expect(confirmCalls).toBe(2))
+  })
+
+  it('shows a cancelled order without offering payment verification or retry', async () => {
+    confirmationOrder = { ...approvedOrder, status: 'cancelled', invoice: null }
+    at(`/compra/resultado?payment_id=pay-cancelled&order_id=${orderId}`)
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Compra cancelada' })).toBeInTheDocument()
+    expect(screen.getByText('Estado: Cancelada')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Verificar de nuevo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar pago' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Descargar factura' })).not.toBeInTheDocument()
   })
 
   it('explains that a paid stock conflict requires support', async () => {

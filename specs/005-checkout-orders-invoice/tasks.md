@@ -1,5 +1,7 @@
 # Tasks: Checkout, Orders, and Invoice (As-Built)
 
+**Status**: Closed for the local, non-production scope with an accepted exception on 2026-10-30; see the [canonical spec](../../../specs/005-checkout-orders-invoice-as-built/spec.md).
+
 **Input**: Design documents from `/specs/005-checkout-orders-invoice/`
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md)
 
@@ -49,15 +51,16 @@
 
 ## Phase N: Polish & Cross-Cutting Concerns
 
-- [x] T016 [P] Document as-built behavior and gaps (`cancelled` falls through to pending, no live provider verification) in [spec.md](./spec.md)
+- [x] T016 [P] Document historical as-built behavior and gaps in [spec.md](./spec.md); the cancelled result was corrected later in T018.
 - [x] T017 [P] Add this retrospective [plan.md](./plan.md) and tasks list
+- [x] T018 [US2] Display a distinct cancelled outcome without payment retry, re-verification, or invoice action; cover it in [App.checkout.test.tsx](../../src/App.checkout.test.tsx). On 2026-10-30 the regression failed before the fix and passed afterward; checkout/navigation tests passed 82 cases, focused lint and build passed.
 
 ## Evidence (only what the ODD/docs report)
 
 - [`cu-c05-purchase.md`](../../../odd/tasks/cu-c05-purchase.md) reports: Frontend suite 35 passed at implementation time and 43 passed in final suites; `npm run generate:types` succeeded; `npm run build` passed; `npm run lint` passed with one pre-existing set-state-in-effect warning. Independent review found an unvalidated `init_point` redirect, fixed with the allowlist plus tests.
 - Frontend commit `fe4ae1e` (`feat(orders): add checkout, payment result and purchase history views`) on `CU-05`, per the ODD record.
-- Live validation was partial and backend-side (checkout via BFF produced a `pending_payment` order and a sandbox `init_point`). Browser payment with the Mercado Pago test buyer, `paid` transition, invoice PDF download, and cart clearing: pending verification; the ODD item `cu-c05-flow-validation` is unchecked.
-- Cancelled-status presentation: pending verification (not tested).
+- Historical live validation was partial and backend-side (checkout via BFF produced a `pending_payment` order and a sandbox `init_point`). A later [isolated browser E2E](../../tests/e2e/cart-wishlist-purchase.spec.ts) verified paid transition, invoice PDF, and cart cleanup with a simulated provider; a real provider round trip remains unverified.
+- Cancelled-status presentation was verified by T018 with mocked BFF confirmation; actual provider behavior remains unverified.
 - Spec commit `6a615fdd8e72af7b3c838daca8b83b4d76d844a4` (docs only, per [`derive-project-specs.md`](../../../odd/tasks/derive-project-specs.md)).
 
 ## Dependencies & Execution Order

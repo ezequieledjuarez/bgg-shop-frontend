@@ -18,7 +18,7 @@
 **Target Platform**: Modern browsers
 **Project Type**: Web application (Frontend only; consumes the BFF)
 **Performance Goals**: N/A
-**Constraints**: Redirect target limited to HTTPS Mercado Pago/Mercado Libre hosts (`src/checkout/navigation.ts`); BFF/Core own order creation, payment verification, ownership, stock, and invoices; the `cancelled` status falls through to the pending presentation (documented gap)
+**Constraints**: Redirect target limited to HTTPS Mercado Pago/Mercado Libre hosts (`src/checkout/navigation.ts`); BFF/Core own order creation, payment verification, ownership, stock, and invoices; `cancelled` has a distinct result without retry or verification actions.
 **Scale/Scope**: 3 screens, 1 API helper module, 1 navigation helper
 
 ## Constitution Check

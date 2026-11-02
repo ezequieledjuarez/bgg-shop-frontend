@@ -1,5 +1,7 @@
 # CU-C06 — Wishlist
 
+**Status**: Closed for the local scope with limitations on 2026-10-30; see the [canonical spec](../../../specs/006-wishlist-as-built/spec.md).
+
 ## Objective and route
 
 Wishlist allows an authenticated buyer to save games, view them again, remove

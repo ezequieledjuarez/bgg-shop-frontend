@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 
@@ -133,7 +133,7 @@ describe('authentication screens', () => {
     expect(screen.getByRole('link', { name: 'Iniciar sesión' })).toBeInTheDocument();
   });
 
-  it('hides account links and removes the session on logout', () => {
+  it('clears the refresh cookie and removes a JWT-only session on logout', async () => {
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({
       access_token: 'access-token',
       refresh_token: 'refresh-token',
@@ -146,9 +146,42 @@ describe('authentication screens', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
 
-    expect(sessionStorage.getItem('bgg-shop.session')).toBeNull();
+    await waitFor(() => expect(sessionStorage.getItem('bgg-shop.session')).toBeNull());
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/logout'), expect.objectContaining({
+      method: 'POST', headers: {}, credentials: 'include',
+    }));
     expect(screen.getByRole('link', { name: 'Crear cuenta' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Iniciar sesión' })).toBeInTheDocument();
+  });
+
+  it('revokes an optional operation key before clearing the session', async () => {
+    sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'access-token', op_key: 'synthetic-op-key' }));
+    vi.mocked(fetch).mockImplementation(async (input) => String(input).includes('/auth/logout')
+      ? new Response(null, { status: 204 })
+      : new Response(JSON.stringify({ items: [] }), { status: 200 }));
+    visit('/');
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
+    await waitFor(() => expect(sessionStorage.getItem('bgg-shop.session')).toBeNull());
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/logout'), expect.objectContaining({
+      method: 'POST', headers: { 'X-Op-Key': 'synthetic-op-key' }, credentials: 'include',
+    }));
+  });
+
+  it('keeps the session when operation-key revocation cannot be confirmed', async () => {
+    sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'access-token', op_key: 'synthetic-op-key' }));
+    vi.mocked(fetch).mockImplementation(async (input) => String(input).includes('/auth/logout')
+      ? new Response(null, { status: 502 })
+      : String(input).includes('/product-categories')
+        ? new Response(JSON.stringify([]), { status: 200 })
+        : new Response(JSON.stringify({ items: [], total: 0, total_pages: 0 }), { status: 200 }));
+    visit('/');
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cerrar sesión');
+    expect(sessionStorage.getItem('bgg-shop.session')).not.toBeNull();
   });
 
   it('updates the catalog actions after a successful login', async () => {
@@ -165,5 +198,17 @@ describe('authentication screens', () => {
     );
     expect(screen.queryByRole('link', { name: 'Crear cuenta' })).not.toBeInTheDocument();
     expect(sessionStorage.getItem('bgg-shop.session')).not.toBeNull();
+  });
+
+  it('retains an operation key when login returns one', async () => {
+    vi.mocked(fetch).mockImplementation(async (input) => String(input).includes('/auth/login')
+      ? new Response(JSON.stringify({ session: { access_token: 'access-token', op_key: 'synthetic-op-key',
+        op_key_expires_at: '2099-01-01T00:00:00Z', ops: ['GET:/api/v1/admin/*'] } }), { status: 200 })
+      : new Response(JSON.stringify({ items: [] }), { status: 200 }));
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'safe-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
+    await waitFor(() => expect(JSON.parse(sessionStorage.getItem('bgg-shop.session') ?? '{}').op_key).toBe('synthetic-op-key'));
   });
 });

@@ -1,7 +1,7 @@
 # Frontend Functional Specification: Product Detail and Reviews (As-Built)
 
 **Input**: CU-C03
-**Status**: As-built / retrospective
+**Status**: Closed and validated with scope limitations on 2026-10-30; see the [canonical closure](../../../specs/003-product-detail-reviews-as-built/spec.md).
 **Scope**: Product detail navigation and display, public approved-review presentation, and the buyer review form. Product lookup, authorization, review persistence, and moderation are BFF/Core responsibilities described in the [canonical CU-C03 specification](../../../specs/003-product-detail-reviews-as-built/spec.md).
 
 ## Frontend responsibilities
@@ -17,7 +17,7 @@
 - The Frontend presents form validation and service outcomes. The BFF/Core enforce authentication, product existence, rating/body bounds, duplicate-review policy, pending status, and which reviews may be public.
 - An unauthenticated review attempt produces a sign-in prompt as form feedback; the current detail screen does not link to or navigate to `/login` from that message.
 - Although the detail response includes weight and category, the current detail view does not display them. The “not found” result is also not a distinct screen from other detail-load errors.
-- The Frontend source contains no dedicated detail/review test file, and `App.test.tsx` covers the catalog rather than detail navigation or review submission. These interactions are not claimed as Frontend-tested here.
+- [Frontend review tests](../../src/App.reviews.test.tsx) cover detail presentation, empty/not-found states, anonymous submission, authenticated submission with a mocked BFF, and duplicate feedback. [Browser tests](../../tests/e2e/product-reviews.spec.ts) cover live detail, anonymous rejection, and not-found behavior; an opt-in test also submits an authenticated review against an isolated disposable stack.
 - Review moderation, approval, and adding a newly pending review to the public list are not Frontend responsibilities.
 
 ## Verification evidence
@@ -25,4 +25,4 @@
 - [Canonical end-to-end CU-C03](../../../specs/003-product-detail-reviews-as-built/spec.md)
 - [BFF OpenAPI](../../../bgg-shop-bff/specs/openapi.yaml) and [generated BFF API types](../../src/types/generated/bff-api.d.ts)
 - [Product, detail, and review implementation](../../src/App.tsx), [review messages](../../src/ui/messages.ts)
-- [Frontend application tests](../../src/App.test.tsx) (catalog coverage only; no detail/review scenario)
+- [Frontend review tests](../../src/App.reviews.test.tsx), [read-only browser tests](../../tests/e2e/product-reviews.spec.ts)

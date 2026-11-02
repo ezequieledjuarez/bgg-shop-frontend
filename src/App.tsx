@@ -1,20 +1,23 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { LoginScreen, RegisterScreen } from './auth/AuthScreens';
 import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
 import './App.css';
-import type { components } from './types/generated/bff-api'
+import type { components, operations } from './types/generated/bff-api'
 import { cartErrorMessage, cartMessages, reviewErrorMessage } from './ui/messages'
 import { CheckoutScreen } from './checkout/CheckoutScreen'
 import { OrdersScreen, PurchaseResultScreen } from './checkout/OrdersScreen'
 import { WishlistScreen } from './wishlist/WishlistScreen'
 import AdminRouter from './admin/AdminRouter'
 
-type SortOrder = 'featured' | 'price-low' | 'price-high'
+type SortOrder = 'default' | 'price-low' | 'price-high'
 
-type Product = components['schemas']['Product'] & { featured?: boolean }
+type Product = components['schemas']['Product']
 type ProductPage = components['schemas']['ProductPage']
+type ProductCategories = operations['listProductCategories']['responses'][200]['content']['application/json']
 type CartResponse = components['schemas']['CartResponse']
+type CouponPreviewRequest = components['schemas']['CouponPreviewRequest']
+type CouponPreviewResponse = components['schemas']['CouponPreviewResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
 type OrderErrorResponse = components['schemas']['OrderErrorResponse']
 type ProductDetail = components['schemas']['ProductDetail']
@@ -38,7 +41,6 @@ function ProductCard({ product, onOpen, onAdd, adding }: { product: Product; onO
   return (
     <article className="product-card" aria-labelledby={headingId}>
       <div className="product-image">
-        {product.featured && <span className="badge">Destacado</span>}
         <img src={product.image_url} alt={`Portada de ${product.name}`} />
       </div>
       <div className="product-content">
@@ -87,6 +89,130 @@ function cartRequestOptions(method: string, body?: unknown, signal?: AbortSignal
   if (body !== undefined) options.body = JSON.stringify(body)
   if (signal) options.signal = signal
   return options
+}
+
+function isCouponPreviewResponse(value: unknown): value is CouponPreviewResponse {
+  if (typeof value !== 'object' || value === null
+    || !('valid' in value) || typeof value.valid !== 'boolean'
+    || !('coupon_code' in value) || typeof value.coupon_code !== 'string'
+    || !('discount_amount' in value) || (value.discount_amount !== null && typeof value.discount_amount !== 'number')
+    || !('new_total' in value) || (value.new_total !== null && typeof value.new_total !== 'number')) return false
+  if (!('reason' in value) || value.reason === undefined || value.reason === null) return true
+  return value.reason === 'INACTIVE'
+    || value.reason === 'NOT_YET_VALID'
+    || value.reason === 'EXPIRED'
+    || value.reason === 'EXHAUSTED'
+    || value.reason === 'DISCOUNT_LIMIT_EXCEEDED'
+    || value.reason === 'EMPTY_CART'
+}
+
+function couponRejectionMessage(reason: CouponPreviewResponse['reason']): string {
+  switch (reason) {
+    case 'INACTIVE': return 'Este cupón no está activo.'
+    case 'NOT_YET_VALID': return 'Este cupón todavía no está vigente.'
+    case 'EXPIRED': return 'Este cupón venció.'
+    case 'EXHAUSTED': return 'Este cupón ya no tiene usos disponibles.'
+    case 'DISCOUNT_LIMIT_EXCEEDED': return 'El descuento supera el límite permitido para este carrito.'
+    case 'EMPTY_CART': return 'Agregá productos al carrito antes de validar un cupón.'
+    default: return 'Este cupón no se puede aplicar a tu carrito.'
+  }
+}
+
+function CouponPreviewPanel({ authenticated, cartEmpty, onLogin }: {
+  authenticated: boolean
+  cartEmpty: boolean
+  onLogin: () => void
+}) {
+  const [couponCode, setCouponCode] = useState('')
+  const [preview, setPreview] = useState<CouponPreviewResponse | null>(null)
+  const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const controllerRef = useRef<AbortController | null>(null)
+
+  useEffect(() => () => controllerRef.current?.abort(), [])
+
+  const submitPreview = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!authenticated || cartEmpty || couponCode === '') return
+
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    setState('loading')
+    setPreview(null)
+    setError(null)
+
+    const request: CouponPreviewRequest = { coupon_code: couponCode }
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/cart/coupons/preview`,
+        cartRequestOptions('POST', request, controller.signal),
+      )
+      if (response.status === 401) throw new Error('Tu sesión expiró. Iniciá sesión para previsualizar el cupón.')
+      if (response.status === 404) throw new Error('No encontramos un cupón con ese código exacto.')
+      if (!response.ok) throw new Error('No se pudo previsualizar el cupón. Intentá nuevamente.')
+
+      const payload: unknown = await response.json()
+      if (!isCouponPreviewResponse(payload)) throw new Error('La respuesta de previsualización no es válida.')
+      setPreview(payload)
+      setState('success')
+    } catch (reason: unknown) {
+      if (controller.signal.aborted) return
+      setError(reason instanceof Error ? reason.message : 'No se pudo previsualizar el cupón.')
+      setState('error')
+    }
+  }
+
+  return (
+    <section className="cart-coupon-preview" aria-labelledby="coupon-preview-title">
+      <h2 id="coupon-preview-title">Previsualizar cupón</h2>
+      {cartEmpty ? (
+        <p role="status">Agregá productos al carrito para previsualizar un cupón.</p>
+      ) : !authenticated ? (
+        <p role="status">
+          Iniciá sesión para previsualizar un cupón en tu carrito.
+          {' '}
+          <button className="text-button" type="button" onClick={onLogin}>Iniciar sesión</button>
+        </p>
+      ) : (
+        <>
+          <form onSubmit={submitPreview}>
+            <label htmlFor="cart-coupon-code">Código del cupón</label>
+            <input
+              id="cart-coupon-code"
+              type="text"
+              autoComplete="off"
+              required
+              value={couponCode}
+              onChange={(event) => {
+                controllerRef.current?.abort()
+                setCouponCode(event.target.value)
+                setPreview(null)
+                setError(null)
+                setState('idle')
+              }}
+            />
+            <button className="primary-button" type="submit" disabled={state === 'loading' || couponCode === ''}>
+              {state === 'loading' ? 'Validando…' : 'Previsualizar'}
+            </button>
+          </form>
+          {state === 'loading' ? <p role="status">Consultando el cupón para tu carrito...</p> : null}
+          {state === 'error' && error ? <p role="alert">{error}</p> : null}
+          {state === 'success' && preview ? (
+            <div role="status">
+              <p>{preview.valid ? 'Cupón válido para este carrito.' : couponRejectionMessage(preview.reason)}</p>
+              {preview.valid ? (
+                <>
+                  <p>Ahorro estimado: {preview.discount_amount === null ? 'No disponible' : formatPrice(preview.discount_amount)}</p>
+                  <p>Total estimado: {preview.new_total === null ? 'No disponible' : formatPrice(preview.new_total)}</p>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      )}
+    </section>
+  )
 }
 
 function ProductDetailScreen({ slug, onBack, onLogin }: { slug: string; onBack: () => void; onLogin: () => void }) {
@@ -360,6 +486,15 @@ function CartScreen({ onBack, onNavigate }: { onBack: () => void; onNavigate: (p
             <h2>{cartMessages.total}</h2>
             <strong>{formatPrice(cart.total)}</strong>
           </section>
+          <CouponPreviewPanel
+            key={`${cart.total}:${cart.lines.map((line) => `${line.bgg_id}-${line.quantity}`).join(',')}`}
+            authenticated={Boolean(readAccessToken())}
+            cartEmpty={cart.lines.length === 0}
+            onLogin={() => {
+              sessionStorage.setItem(pendingReturnKey, '/carrito')
+              onNavigate('/login')
+            }}
+          />
           {showLoginPrompt && <p role="status">Iniciá sesión para continuar con tu compra. <a href="/login" onClick={(event) => { event.preventDefault(); sessionStorage.setItem(pendingReturnKey, '/checkout'); onNavigate('/login') }}>Iniciar sesión</a></p>}
           <button className="primary-button" type="button" disabled={cart.lines.length === 0 || pendingId !== null} onClick={() => {
             if (!readAccessToken()) setShowLoginPrompt(true)
@@ -382,20 +517,38 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [searchDraft, setSearchDraft] = useState('')
   const [search, setSearch] = useState('')
   const [year, setYear] = useState('')
+  const [categoryName, setCategoryName] = useState('')
+  const [categories, setCategories] = useState<ProductCategories>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
+  const [categoriesError, setCategoriesError] = useState(false)
+  const [categoriesRetry, setCategoriesRetry] = useState(0)
   const [minPlayers, setMinPlayers] = useState('')
   const [maxPlayers, setMaxPlayers] = useState('')
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
-  const [sort, setSort] = useState<SortOrder>('featured')
+  const [sort, setSort] = useState<SortOrder>('default')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   const [addingProductId, setAddingProductId] = useState<number | null>(null)
   const [cartFeedback, setCartFeedback] = useState<string | null>(null)
   const [cartFeedbackError, setCartFeedbackError] = useState(false)
+  const [logoutPending, setLogoutPending] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
+  const invalidPlayerRange = minPlayers !== '' && maxPlayers !== '' && Number(minPlayers) > Number(maxPlayers)
+  const invalidPriceRange = minPrice !== '' && maxPrice !== '' && Number(minPrice) > Number(maxPrice)
+  const invalidRange = invalidPlayerRange || invalidPriceRange
 
   useEffect(() => {
+    if (invalidRange) {
+      setLoading(false)
+      return
+    }
     const controller = new AbortController()
-    const params = new URLSearchParams({ page: '1', page_size: '100' })
+    const params = new URLSearchParams({ page: String(page), page_size: '100' })
     if (search.trim()) params.set('search', search.trim())
     if (year) params.set('year_published', year)
+    if (categoryName) params.set('category_name', categoryName)
     if (minPlayers) params.set('min_players', minPlayers)
     if (maxPlayers) params.set('max_players', maxPlayers)
     if (minPrice) params.set('price_min', minPrice)
@@ -410,7 +563,15 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
         if (!response.ok) throw new Error('No se pudo cargar el catálogo.')
         return response.json() as Promise<ProductPage>
       })
-      .then((page) => setProducts(page.items))
+      .then((result) => {
+        if (page > Math.max(1, result.total_pages)) {
+          setPage(Math.max(1, result.total_pages))
+          return
+        }
+        setProducts(result.items)
+        setTotal(result.total)
+        setTotalPages(result.total_pages)
+      })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === 'AbortError') return
         setError(reason instanceof Error ? reason.message : 'No se pudo cargar el catálogo.')
@@ -420,22 +581,49 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
       })
 
     return () => controller.abort()
-  }, [search, year, minPlayers, maxPlayers, minPrice, maxPrice, retry])
+  }, [search, year, categoryName, minPlayers, maxPlayers, minPrice, maxPrice, page, invalidRange, retry])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setCategoriesLoading(true)
+    setCategoriesError(false)
+    fetch(`${apiBaseUrl}/product-categories`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Failed to load categories')
+        const value: unknown = await response.json()
+        if (!Array.isArray(value) || !value.every((item) => typeof item === 'string' && item.trim())) {
+          throw new Error('Invalid categories response')
+        }
+        return value as ProductCategories
+      })
+      .then(setCategories)
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === 'AbortError') return
+        setCategoriesError(true)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCategoriesLoading(false)
+      })
+    return () => controller.abort()
+  }, [categoriesRetry])
 
   const clearFilters = () => {
     setSearchDraft('')
     setSearch('')
     setYear('')
+    setCategoryName('')
     setMinPlayers('')
     setMaxPlayers('')
     setMinPrice('')
     setMaxPrice('')
-    setSort('featured')
+    setSort('default')
+    setPage(1)
   }
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSearch(searchDraft.trim())
+    setPage(1)
   }
 
   useEffect(() => {
@@ -446,7 +634,28 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
     return () => window.removeEventListener(SESSION_CHANGE_EVENT, handleSessionChange)
   }, [])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    let opKey: string | undefined
+    try {
+      const session = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) ?? '{}') as { op_key?: string }
+      opKey = session.op_key
+    } catch {
+      opKey = undefined
+    }
+    setLogoutPending(true)
+    setLogoutError(null)
+    try {
+      const headers: Record<string, string> = opKey ? { 'X-Op-Key': opKey } : {}
+      const response = await fetch(`${apiBaseUrl}/auth/logout`, {
+        method: 'POST', headers, credentials: 'include',
+      })
+      if (!response.ok) throw new Error('Logout failed')
+    } catch {
+      setLogoutError('No se pudo cerrar sesión. Intentá nuevamente.')
+      setLogoutPending(false)
+      return
+    }
+    setLogoutPending(false)
     sessionStorage.removeItem(SESSION_STORAGE_KEY)
     window.dispatchEvent(new Event(SESSION_CHANGE_EVENT))
   }
@@ -485,7 +694,7 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
     .sort((first, second) => {
       if (sort === 'price-low') return first.price - second.price
       if (sort === 'price-high') return second.price - first.price
-      return Number(second.featured) - Number(first.featured)
+      return 0
     })
 
   return (
@@ -505,7 +714,7 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
         </nav>
         <div className="account-actions">
           {isAuthenticated ? (
-            <button className="logout-button" type="button" onClick={handleLogout}>Cerrar sesión</button>
+            <button className="logout-button" type="button" onClick={() => void handleLogout()} disabled={logoutPending}>Cerrar sesión</button>
           ) : (
             <>
               <a className="login-button" href="/login">Iniciar sesión</a>
@@ -514,6 +723,7 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
           )}
         </div>
       </header>
+      {logoutError && <p role="alert">{logoutError}</p>}
 
       <main>
         <section className="hero" aria-labelledby="hero-title">
@@ -552,35 +762,46 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
           <div className="filter-panel" aria-label="Filtros del catálogo">
             <div className="filter-row">
               <label>Año de publicación
-                <input type="number" min="0" value={year} onChange={(event) => setYear(event.target.value)} />
+                <input type="number" min="0" value={year} onChange={(event) => { setYear(event.target.value); setPage(1) }} />
+              </label>
+              <label>Categoría
+                <select value={categoryName} onChange={(event) => { setCategoryName(event.target.value); setPage(1) }} disabled={categoriesLoading || categoriesError}>
+                  <option value="">Todas las categorías</option>
+                  {categories.map((category) => <option value={category} key={category}>{category}</option>)}
+                </select>
               </label>
               <label>Mínimo de jugadores
-                <input type="number" min="1" value={minPlayers} onChange={(event) => setMinPlayers(event.target.value)} />
+                <input type="number" min="1" value={minPlayers} aria-invalid={invalidPlayerRange} aria-describedby={invalidPlayerRange ? 'player-range-error' : undefined} onChange={(event) => { setMinPlayers(event.target.value); setPage(1) }} />
               </label>
               <label>Máximo de jugadores
-                <input type="number" min="1" value={maxPlayers} onChange={(event) => setMaxPlayers(event.target.value)} />
+                <input type="number" min="1" value={maxPlayers} aria-invalid={invalidPlayerRange} aria-describedby={invalidPlayerRange ? 'player-range-error' : undefined} onChange={(event) => { setMaxPlayers(event.target.value); setPage(1) }} />
               </label>
               <label>Precio mínimo
-                <input type="number" min="0" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} />
+                <input type="number" min="0" value={minPrice} aria-invalid={invalidPriceRange} aria-describedby={invalidPriceRange ? 'price-range-error' : undefined} onChange={(event) => { setMinPrice(event.target.value); setPage(1) }} />
               </label>
               <label>Precio máximo
-                <input type="number" min="0" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} />
+                <input type="number" min="0" value={maxPrice} aria-invalid={invalidPriceRange} aria-describedby={invalidPriceRange ? 'price-range-error' : undefined} onChange={(event) => { setMaxPrice(event.target.value); setPage(1) }} />
               </label>
             </div>
+            {invalidRange && <div role="alert">
+              {invalidPlayerRange && <p id="player-range-error">El mínimo de jugadores no puede superar el máximo.</p>}
+              {invalidPriceRange && <p id="price-range-error">El precio mínimo no puede superar el máximo.</p>}
+            </div>}
+            {categoriesError && <p role="alert">No se pudieron cargar las categorías. <button type="button" onClick={() => setCategoriesRetry((value) => value + 1)}>Reintentar categorías</button></p>}
             <div className="catalog-toolbar">
-              <label className="sort-control">Ordenar por
+              <label className="sort-control">Ordenar página por
                 <select value={sort} onChange={(event) => setSort(event.target.value as SortOrder)} aria-label="Ordenar productos">
-                  <option value="featured">Recomendados</option>
+                  <option value="default">Orden del catálogo</option>
                   <option value="price-low">Precio menor</option>
                   <option value="price-high">Precio mayor</option>
                 </select>
               </label>
             </div>
-            <div className="results-summary" aria-live="polite">{visibleProducts.length} resultados</div>
+            {!loading && !error && !invalidRange && <div className="results-summary" aria-live="polite">{total} resultados</div>}
             <button type="button" className="clear-filters" onClick={clearFilters}>Limpiar filtros</button>
           </div>
           {cartFeedback && <p role={cartFeedbackError ? "alert" : "status"} aria-live={cartFeedbackError ? "assertive" : "polite"}>{cartFeedback}</p>}
-          {loading ? (
+          {invalidRange ? null : loading ? (
             <div className="empty-state" role="status">Cargando catálogo...</div>
           ) : error ? (
             <div className="empty-state" role="alert">
@@ -596,6 +817,13 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
             </div>
           ) : (
             <div className="product-grid">{visibleProducts.map((product) => <ProductCard product={product} key={product.bgg_id} onOpen={(selected) => { window.history.pushState({}, '', `/juegos/${slugify(selected.name)}?bgg_id=${selected.bgg_id}`); window.dispatchEvent(new PopStateEvent('popstate')) }} onAdd={addProductToCart} adding={addingProductId === product.bgg_id} />)}</div>
+          )}
+          {!invalidRange && !error && totalPages > 1 && (
+            <nav className="catalog-pagination" aria-label="Páginas del catálogo">
+              <button type="button" aria-label="Página anterior" disabled={loading || page <= 1} onClick={() => setPage((value) => value - 1)}>Anterior</button>
+              <span aria-live="polite">Página {page} de {totalPages}</span>
+              <button type="button" aria-label="Página siguiente" disabled={loading || page >= totalPages} onClick={() => setPage((value) => value + 1)}>Siguiente</button>
+            </nav>
           )}
         </section>
 

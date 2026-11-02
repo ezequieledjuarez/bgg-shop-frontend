@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End the local session and revoke an optional operation key
+         * @description When X-Op-Key is supplied, revokes that key in Core. Without a key, clears the refresh cookie. Existing JWT access tokens are not revoked.
+         */
+        post: operations["logoutAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/refresh": {
         parameters: {
             query?: never;
@@ -64,6 +84,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List available product category names */
+        get: operations["listProductCategories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products": {
         parameters: {
             query?: never;
@@ -76,6 +113,26 @@ export interface paths {
          * @description Returns a paginated collection filtered by optional catalog criteria.
          */
         get: operations["listProducts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List available coupons
+         * @description Lists active coupons with remaining uses and configured validity dates containing the current time. This public read does not consume or reserve coupon uses. It does not guarantee availability at payment.
+         */
+        get: operations["listAvailableCoupons"];
         put?: never;
         post?: never;
         delete?: never;
@@ -277,7 +334,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create an order and initialize checkout payment */
+        /**
+         * Create an order and initialize checkout payment
+         * @description A supplied coupon_code is matched exactly and its use is reserved atomically as part of checkout. A confirmed failure or cancellation releases that reservation. An uncertain payment outcome retains it while Core reconciles with the provider; unresolved outcomes require manual review. A timeout alone never releases a reservation. Coupon checkout requires X-Op-Key as its idempotency key, which identifies the checkout operation: retrying the same key and payload replays its order without reserving another use; reusing the key with a different payload conflicts.
+         */
         post: operations["checkout"];
         delete?: never;
         options?: never;
@@ -367,6 +427,296 @@ export interface paths {
         get: operations["downloadOrderInvoice"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List and filter products for administration
+         * @description Proposed contract for the existing administrative product listing. Core is authoritative for product data. The implementation must return a sanitized error when Core fails rather than a successful empty page. Contract alignment remains to be verified. Requires an active authenticated user with is_staff or is_superuser.
+         */
+        get: operations["adminListProducts"];
+        put?: never;
+        /**
+         * Create a product
+         * @description Proposed contract; implementation remains to be verified. Requires an active authenticated user with is_staff or is_superuser.
+         */
+        post: operations["adminCreateProduct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description BoardGameGeek product identifier. */
+                product_id: number;
+            };
+            cookie?: never;
+        };
+        /**
+         * Get an administrative product
+         * @description Reads the exact product from Core by BGG identifier. An incomplete or failed upstream response is not returned as a successful product. Requires an active staff or superuser account.
+         */
+        get: operations["adminGetProduct"];
+        /**
+         * Update a product
+         * @description Proposed contract for a partial update. Stock is set at creation and subsequently changed through inventory operations; quantity is not an editable product field. Updates cannot change the BGG ID. Price must be greater than zero, and an image change supplies exactly one .webp URL or path/filename. Requires an active authenticated user with is_staff or is_superuser. Runtime conformance remains to be verified.
+         */
+        put: operations["adminUpdateProduct"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust product stock
+         * @description UUID-bound IN/OUT movement. A provisional IN_PROGRESS record precedes the atomic stock, audit and final-result commit. A completed retry returns its original result; a retry with the same data resumes an unfinished movement without applying it twice, even after a long delay. A UUID reused for different product, direction or quantity is rejected. OUT is partial-to-zero when requested quantity exceeds available stock, with requested and applied quantities in the result. Successful movement identifiers do not expire. After an interrupted connection, refreshing stock alone does not confirm a movement outcome. A failed, rejected or no-change operation may be retried indefinitely with the same exact payload and UUID; an HTTP error or timeout alone does not confirm that stock rolled back. Requires an active staff or superuser account.
+         */
+        post: operations["adminAdjustProductStock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/stock-movement-ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate a stock movement UUID
+         * @description Generates an identifier before a stock movement is submitted. This operation does not create a movement or change inventory. The stock movement endpoint accepts this identifier. Requires an active authenticated user with is_staff or is_superuser.
+         */
+        post: operations["adminGenerateStockMovementId"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/stock-movements/{movement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get stock movement status
+         * @description Lookup by the UUID generated before a movement. A missing record does not prove that a movement was rejected or rolled back. Requires an active authenticated user with is_staff or is_superuser.
+         */
+        get: operations["adminGetStockMovementStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/promotions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List promotions
+         * @description Proposed contract based on the existing BFF adapter. A promotion may reference one product; at most one active promotion may reference each product. Requires an active authenticated user with is_staff or is_superuser. Runtime conformance remains to be verified.
+         */
+        get: operations["adminListPromotions"];
+        put?: never;
+        /**
+         * Create a promotion
+         * @description Proposed contract for the existing basic adapter. Percentage discounts range from zero through 50, inclusive. Requires an active authenticated user with is_staff or is_superuser. Runtime conformance remains to be verified.
+         */
+        post: operations["adminCreatePromotion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/promotions/{promotion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update a promotion
+         * @description Proposed contract; Core mapping remains to be verified. A promotion may reference one product, with at most one active promotion per product. Requires an active authenticated user with is_staff or is_superuser.
+         */
+        put: operations["adminUpdatePromotion"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List administrative coupons
+         * @description Returns coupons with their percentage flattened from the associated product-less promotion. Codes are exact-case and are not normalized. Requires an active staff or superuser account.
+         */
+        get: operations["adminListCoupons"];
+        put?: never;
+        /**
+         * Create an administrative coupon
+         * @description Creates a coupon and its product-less promotion. The promotion stores the whole-purchase discount percentage; coupon state and validity remain on the coupon. The coupon and its audit entry, including actor, action, target, previous values, and new values, commit atomically. Credentials are never written to audit history. Requires an active staff or superuser account.
+         */
+        post: operations["adminCreateCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/coupons/{coupon_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Partially update an administrative coupon
+         * @description Applies only supplied fields; code is immutable and no physical-delete operation exists, so coupons are deactivated through active=false. Discount changes update the associated product-less promotion. The coupon, promotion update, and audit entry containing actor, action, target, previous values, and new values commit atomically. Credentials are never written to audit history. Requires an active staff or superuser account.
+         */
+        patch: operations["adminUpdateCoupon"];
+        trace?: never;
+    };
+    "/api/v1/admin/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List administrative audit records
+         * @description Returns product, stock, promotion, and coupon audit records ordered by created_at DESC, id DESC using opaque signed cursor pagination. All filters are optional exact matches except the inclusive UTC date range. Date-times must include a timezone designator and are normalized to UTC. Values stored under keys naming credentials, tokens, passwords, secrets, authorization data, or payment/card data are replaced with "[REDACTED]" before the response is returned. Responses are not cacheable. Requires an active staff or superuser account.
+         */
+        get: operations["adminListAuditRecords"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/coupons/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a coupon against the authenticated user's current cart
+         * @description This read-only preview uses the authenticated user's current cart and does not reserve or consume a coupon use. Coupon codes are matched by exact, case-sensitive equality, without normalization. Inactive, not-yet-valid, expired, exhausted or over-limit coupons return a rejected preview with a reason; a missing coupon returns 404. Validity timestamps are UTC; the start is inclusive and the end is exclusive, and if both are configured the start must precede the end. Preserve decimal precision while calculating each alternative, then round each total upward once to whole pesos. Select the greater saving; ties favor the store promotion. A discount above 50% of the undiscounted cart subtotal is rejected, not capped. Runtime behavior is not established by this contract.
+         */
+        post: operations["previewCartCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/op-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List operation-key sessions */
+        get: operations["adminListOperationSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/op-sessions/{session_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke an operation-key session */
+        post: operations["adminRevokeOperationSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/op-sessions/{session_id}/expire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Expire an operation-key session */
+        post: operations["adminExpireOperationSession"];
         delete?: never;
         options?: never;
         head?: never;
@@ -493,6 +843,13 @@ export interface components {
             rating: number;
             body: string;
         };
+        ReviewError: {
+            code: string;
+            message?: string;
+        };
+        ReviewErrorResponse: {
+            errors: components["schemas"]["ReviewError"][];
+        };
         CreateReviewResponse: {
             created: boolean;
             /** @enum {string} */
@@ -558,11 +915,33 @@ export interface components {
             last_name: string;
             is_active: boolean;
         };
+        OperationSession: {
+            /** Format: uuid */
+            id: string;
+            user_id?: string | null;
+            ops: string[];
+            /** Format: date-time */
+            issued_at: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            /** Format: date-time */
+            last_used?: string | null;
+            revoked: boolean;
+        };
+        OperationSessionPage: {
+            items: components["schemas"]["OperationSession"][];
+            has_next: boolean;
+        };
         AuthSession: {
             /** @description JWT access token for Bearer authentication. */
             access_token: string;
             refresh_token: string | null;
             csrf_token?: string | null;
+            /** @description Optional one-time operation key issued to eligible users. */
+            op_key?: string;
+            /** Format: date-time */
+            op_key_expires_at?: string | null;
+            ops?: string[] | null;
         };
         AuthError: {
             field?: string[] | null;
@@ -624,6 +1003,197 @@ export interface components {
              */
             quantity: number;
         };
+        AdminProductFields: {
+            bgg_id?: number;
+            name?: string;
+            /** @description Positive base price. */
+            price?: number;
+            quantity?: number;
+            release_year?: number;
+            min_players?: number;
+            max_players?: number;
+            playing_time_minutes?: number;
+            min_age?: number;
+            max_age?: number;
+            weight?: number;
+            category?: string[];
+            publisher?: string;
+            /** @description A single .webp filename or path; mutually exclusive with image_url. */
+            image_file_name?: string;
+            /** @description A single .webp URL or path; mutually exclusive with image_file_name. */
+            image_url?: string;
+        };
+        AdminCreateProductRequest: (components["schemas"]["AdminProductFields"] & Record<string, never>) & (unknown | unknown);
+        AdminUpdateProductRequest: components["schemas"]["AdminProductFields"] & Record<string, never>;
+        AdminProductSummary: {
+            bgg_id: number;
+            name: string;
+        };
+        AdminAdjustStockRequest: {
+            /** Format: uuid */
+            movement_id: string;
+            /** @enum {string} */
+            direction: "IN" | "OUT";
+            /**
+             * @description Requested units for the movement.
+             * @example 20
+             */
+            quantity: number;
+        };
+        AdminStockMovementResult: {
+            /** Format: uuid */
+            movement_id: string;
+            /** @enum {string} */
+            status: "APPLIED";
+            requested_quantity: number;
+            applied_quantity: number;
+            quantity_before: number;
+            quantity_after: number;
+            /** @description Present when an OUT movement is limited by available stock. */
+            warning?: string;
+        };
+        AdminStockMovementId: {
+            /** Format: uuid */
+            movement_id: string;
+        };
+        AdminStockMovementStatus: {
+            /** Format: uuid */
+            movement_id: string;
+            /** @enum {string} */
+            status: "IN_PROGRESS" | "APPLIED" | "REJECTED";
+        };
+        AdminStockMovementError: {
+            /** Format: uuid */
+            movement_id: string;
+            /** @description Public error message without upstream details. */
+            error: string;
+        };
+        AdminPromotionFields: {
+            name?: string;
+            /** @description Percentage discount from zero through 50, inclusive. */
+            discount_percent?: number;
+            /** @description Product BGG identifier, or null for a product-agnostic promotion. */
+            product_bgg_id?: number | null;
+            /** @description Manual switch independent of validity dates. A disabled promotion must not apply even within its validity period; an enabled promotion remains subject to its dates. Existing promotions remain inactive when the field is introduced. At most one active promotion may reference each product. */
+            active?: boolean;
+        };
+        AdminCreatePromotionRequest: components["schemas"]["AdminPromotionFields"] & Record<string, never>;
+        AdminCouponRequestFields: {
+            /** @description Exact-case unique coupon code; no normalization is applied. */
+            code?: string;
+            /** @description Whole-purchase discount percentage, from zero through 50 inclusive. */
+            discount_percent?: number;
+            /**
+             * Format: int64
+             * @description Number of uses remaining.
+             */
+            remaining?: number;
+            active?: boolean;
+            /**
+             * Format: date-time
+             * @description UTC validity start, inclusive; null means no lower bound.
+             */
+            starts_at?: string | null;
+            /**
+             * Format: date-time
+             * @description UTC validity end, exclusive; start must precede end when both exist.
+             */
+            ends_at?: string | null;
+        };
+        AdminCreateCouponRequest: components["schemas"]["AdminCouponRequestFields"] & Record<string, never>;
+        AdminUpdateCouponRequest: {
+            discount_percent?: number;
+            /** Format: int64 */
+            remaining?: number;
+            active?: boolean;
+            /** Format: date-time */
+            starts_at?: string | null;
+            /** Format: date-time */
+            ends_at?: string | null;
+        };
+        AdminAuditRecord: {
+            /** Format: int64 */
+            id: number;
+            actor_id: string | null;
+            action: string;
+            entity_type: string | null;
+            entity_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+            changes: {
+                /** @description Redacted previous values, or null when none exist. */
+                before: {
+                    [key: string]: unknown;
+                } | null;
+                /** @description Redacted new values, or null when none exist. */
+                after: {
+                    [key: string]: unknown;
+                } | null;
+            };
+        };
+        AdminAuditPage: {
+            items: components["schemas"]["AdminAuditRecord"][];
+            /** @description Opaque cursor for the next page, or null at the end. */
+            next_cursor: string | null;
+        };
+        AdminCoupon: {
+            id: number;
+            code: string;
+            discount_percent: number;
+            /** Format: int64 */
+            remaining: number;
+            active: boolean;
+            /** Format: date-time */
+            starts_at: string | null;
+            /** Format: date-time */
+            ends_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AdminUpdatePromotionRequest: components["schemas"]["AdminPromotionFields"] & Record<string, never>;
+        AdminPromotionSummary: {
+            id: string;
+            name: string;
+        };
+        AdminPromotion: components["schemas"]["AdminPromotionSummary"] & {
+            discount_percent: number;
+            /** @description Manual activation state, independent of validity dates. */
+            active: boolean;
+            product_bgg_id?: number | null;
+        };
+        CouponPreviewRequest: {
+            /** @description Exact, case-sensitive coupon code; no normalization is applied. */
+            coupon_code: string;
+        };
+        CouponPreviewResponse: {
+            valid: boolean;
+            coupon_code: string;
+            /** @description The selected total saving after preserving decimal precision and rounding each total upward once to whole pesos. */
+            discount_amount: number;
+            new_total: number;
+            /** @enum {string|null} */
+            reason?: "INACTIVE" | "NOT_YET_VALID" | "EXPIRED" | "EXHAUSTED" | "DISCOUNT_LIMIT_EXCEEDED" | "EMPTY_CART" | null;
+        };
+        AdminFieldErrorResponse: {
+            errors: {
+                /** @description Public input field name, when applicable. */
+                field?: string;
+                code: string;
+                /** @description Sanitized public message. */
+                message: string;
+            }[];
+        };
+        AdminProductPage: {
+            items: components["schemas"]["Product"][];
+            page: number;
+            page_size: number;
+            total: number;
+            total_pages: number;
+        };
+        AdminErrorResponse: {
+            /** @description Stable public error message without upstream details. */
+            error: string;
+        };
         WishlistAddRequest: {
             /**
              * @description Product identifier. User identity is derived exclusively from the bearer token.
@@ -649,6 +1219,8 @@ export interface components {
             /** @enum {string} */
             shipping_mode: "standard" | "pickup";
             address?: components["schemas"]["ShippingAddress"];
+            /** @description Optional exact, case-sensitive coupon code. When present, X-Op-Key is required and identifies this checkout operation. A supplied coupon is reserved atomically only when its saving is selected; preview does not reserve it. */
+            coupon_code?: string;
         };
         /** @description Limits apply to the supplied strings before trimming. Mercado Pago checkout trims the fields; credit checkout preserves the submitted values for idempotency. For standard delivery, recipient, street, city, and postal code must contain non-whitespace characters. Explicit null values are not accepted. */
         ShippingAddress: {
@@ -683,7 +1255,7 @@ export interface components {
             currency: string;
             /** @enum {string} */
             shipping_mode: "standard" | "pickup";
-            recipient?: string | null;
+            recipient?: string;
             street?: string | null;
             city?: string | null;
             postal_code?: string | null;
@@ -736,6 +1308,78 @@ export interface components {
         };
     };
     responses: {
+        /** @description Sanitized error; a valid movement UUID is included when available. */
+        AdminStockMovementRequestError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"] | components["schemas"]["AdminStockMovementError"];
+            };
+        };
+        /** @description Invalid input or a sanitized field-level business error. */
+        AdminInvalidRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"] | components["schemas"]["AdminFieldErrorResponse"];
+            };
+        };
+        /** @description Authentication is required. */
+        AdminUnauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"];
+            };
+        };
+        /** @description Administrative permission is required. */
+        AdminForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"];
+            };
+        };
+        /** @description A coupon with the exact code already exists. */
+        AdminConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminFieldErrorResponse"];
+            };
+        };
+        /** @description Core could not complete the coupon operation or returned an invalid response. Upstream failure details are not exposed. */
+        AdminCouponFailure: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"];
+            };
+        };
+        /** @description The requested resource was not found. */
+        AdminNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"];
+            };
+        };
+        /** @description Core is unavailable or returned an invalid response; upstream details must not be exposed. */
+        AdminUpstreamFailure: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"];
+            };
+        };
         /** @description Sanitized error for an invalid request body or idempotency key. */
         CreditInvalidRequest: {
             headers: {
@@ -782,6 +1426,8 @@ export interface components {
         MaxPlayers: number;
         /** @description Category identifier (1 strategy, 2 thematic, 3 family). */
         CategoryId: number;
+        /** @description Exact category name returned by the product categories endpoint. */
+        CategoryName: string;
         /** @description Inclusive minimum price. */
         PriceMin: number;
         /** @description Inclusive maximum price. */
@@ -876,6 +1522,8 @@ export interface operations {
             /** @description Customer authenticated successfully; the guest cart cookie is cleared after the Core merges it. */
             200: {
                 headers: {
+                    /** @description Prevents caching of session credentials. */
+                    "Cache-Control": "no-store";
                     /** @description Clears the guest cart cookie after successful login. */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
@@ -903,6 +1551,35 @@ export interface operations {
                 };
             };
             /** @description The BFF could not obtain a valid response from the Core GraphQL service. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    logoutAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Op-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key is revoked or no key was supplied; the refresh cookie is cleared. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The BFF could not confirm operation-key revocation. */
             502: {
                 headers: {
                     [name: string]: unknown;
@@ -959,6 +1636,35 @@ export interface operations {
             };
         };
     };
+    listProductCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Distinct category names from the catalog. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Core is unavailable or returned an invalid response. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listProducts: {
         parameters: {
             query?: {
@@ -982,6 +1688,8 @@ export interface operations {
                 max_players?: components["parameters"]["MaxPlayers"];
                 /** @description Category identifier (1 strategy, 2 thematic, 3 family). */
                 category_id?: components["parameters"]["CategoryId"];
+                /** @description Exact category name returned by the product categories endpoint. */
+                category_name?: components["parameters"]["CategoryName"];
                 /** @description Inclusive minimum price. */
                 price_min?: components["parameters"]["PriceMin"];
                 /** @description Inclusive maximum price. */
@@ -1055,6 +1763,42 @@ export interface operations {
                      *       "detail": "GraphQL upstream returned errors"
                      *     }
                      */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAvailableCoupons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Available coupons. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        /** Format: date-time */
+                        starts_at: string;
+                        /** Format: date-time */
+                        ends_at: string;
+                    }[];
+                };
+            };
+            /** @description The coupon service could not be reached or returned invalid data. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
@@ -1381,7 +2125,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ReviewErrorResponse"];
                 };
             };
             /** @description Authentication is required. */
@@ -1390,7 +2134,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ReviewErrorResponse"];
                 };
             };
             /** @description The game does not exist. */
@@ -1399,7 +2143,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ReviewErrorResponse"];
                 };
             };
             /** @description The user already reviewed this game. */
@@ -1408,7 +2152,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["ReviewErrorResponse"];
                 };
             };
             /** @description The BFF could not obtain a valid response from the Core GraphQL service. */
@@ -1427,7 +2171,7 @@ export interface operations {
                      *       ]
                      *     }
                      */
-                    "application/json": components["schemas"]["AuthErrorResponse"];
+                    "application/json": components["schemas"]["ReviewErrorResponse"];
                 };
             };
         };
@@ -1748,7 +2492,10 @@ export interface operations {
     checkout: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required when coupon_code is supplied; identifies the checkout operation for safe retries. */
+                "X-Op-Key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1785,7 +2532,16 @@ export interface operations {
                     "application/json": components["schemas"]["OrderErrorResponse"];
                 };
             };
-            /** @description Current cart contents exceed available stock. */
+            /** @description No coupon exists with the exact supplied code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderErrorResponse"];
+                };
+            };
+            /** @description Current cart contents exceed available stock, the checkout key conflicts with a prior payload, or the original payment attempt still requires reconciliation. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1794,7 +2550,7 @@ export interface operations {
                     "application/json": components["schemas"]["OrderErrorResponse"];
                 };
             };
-            /** @description Cart is empty or the order cannot be paid. */
+            /** @description Cart is empty, the order cannot be paid, or the coupon is ineligible; the response includes a reason. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2136,6 +2892,721 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
+            };
+        };
+    };
+    adminListProducts: {
+        parameters: {
+            query?: {
+                /**
+                 * @description One-based page number.
+                 * @example 1
+                 */
+                page?: components["parameters"]["Page"];
+                /**
+                 * @description Number of products per page.
+                 * @example 50
+                 */
+                page_size?: components["parameters"]["PageSize"];
+                /** @description Case-insensitive search over product name or publisher. */
+                search?: components["parameters"]["Search"];
+                /** @description Exact publication year. */
+                year_published?: components["parameters"]["YearPublished"];
+                /** @description Minimum requested player count. */
+                min_players?: components["parameters"]["MinPlayers"];
+                /** @description Maximum requested player count. */
+                max_players?: components["parameters"]["MaxPlayers"];
+                /** @description Category identifier (1 strategy, 2 thematic, 3 family). */
+                category_id?: components["parameters"]["CategoryId"];
+                /** @description Inclusive minimum price. */
+                price_min?: components["parameters"]["PriceMin"];
+                /** @description Inclusive maximum price. */
+                price_max?: components["parameters"]["PriceMax"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated administrative product collection. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProductPage"];
+                };
+            };
+            /** @description Invalid pagination or filter parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminErrorResponse"];
+                };
+            };
+            /** @description Authentication is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminErrorResponse"];
+                };
+            };
+            /** @description Administrative permission is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminErrorResponse"];
+                };
+            };
+            /** @description Core is unavailable or returned an invalid response. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminErrorResponse"];
+                };
+            };
+        };
+    };
+    adminCreateProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateProductRequest"];
+            };
+        };
+        responses: {
+            /** @description Product created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProductSummary"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    adminGetProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description BoardGameGeek product identifier. */
+                product_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Product details. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["AdminNotFound"];
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    adminUpdateProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description BoardGameGeek product identifier. */
+                product_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUpdateProductRequest"];
+            };
+        };
+        responses: {
+            /** @description Product updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProductSummary"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["AdminNotFound"];
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    adminAdjustProductStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAdjustStockRequest"];
+            };
+        };
+        responses: {
+            /** @description Applied movement or its original result on retry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStockMovementResult"];
+                };
+            };
+            /** @description Another attempt is executing the same movement; check its status or retry with the same data. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStockMovementStatus"] & {
+                        /** @enum {string} */
+                        status?: "IN_PROGRESS";
+                    };
+                };
+            };
+            400: components["responses"]["AdminStockMovementRequestError"];
+            401: components["responses"]["AdminStockMovementRequestError"];
+            403: components["responses"]["AdminStockMovementRequestError"];
+            404: components["responses"]["AdminStockMovementRequestError"];
+            /** @description UUID reused with different movement data. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStockMovementError"];
+                };
+            };
+            502: components["responses"]["AdminStockMovementRequestError"];
+        };
+    };
+    adminGenerateStockMovementId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A new stock movement UUID. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStockMovementId"];
+                };
+            };
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    adminGetStockMovementStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                movement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current recorded status of the movement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStockMovementStatus"];
+                };
+            };
+            /** @description Invalid movement UUID. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStockMovementError"];
+                };
+            };
+            /** @description Administrative permission is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStockMovementError"];
+                };
+            };
+            /** @description No movement record is available for this UUID; its outcome is not established. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStockMovementError"];
+                };
+            };
+            /** @description The movement status could not be retrieved from Core. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStockMovementError"];
+                };
+            };
+        };
+    };
+    adminListPromotions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Promotion collection. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPromotion"][];
+                };
+            };
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    adminCreatePromotion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreatePromotionRequest"];
+            };
+        };
+        responses: {
+            /** @description Promotion created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPromotionSummary"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    adminUpdatePromotion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                promotion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUpdatePromotionRequest"];
+            };
+        };
+        responses: {
+            /** @description Promotion updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPromotionSummary"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["AdminNotFound"];
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    adminListCoupons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Coupon collection. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCoupon"][];
+                };
+            };
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            502: components["responses"]["AdminCouponFailure"];
+        };
+    };
+    adminCreateCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateCouponRequest"];
+            };
+        };
+        responses: {
+            /** @description Coupon created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCoupon"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            409: components["responses"]["AdminConflict"];
+            502: components["responses"]["AdminCouponFailure"];
+        };
+    };
+    adminUpdateCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                coupon_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUpdateCouponRequest"];
+            };
+        };
+        responses: {
+            /** @description Coupon updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCoupon"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["AdminNotFound"];
+            502: components["responses"]["AdminCouponFailure"];
+        };
+    };
+    adminListAuditRecords: {
+        parameters: {
+            query?: {
+                /** @description Exact entity type, such as product_boardgame, promotion, or coupon. */
+                entity_type?: string;
+                /** @description Exact entity identifier. */
+                entity_id?: string;
+                /** @description Exact administrator identifier. */
+                actor_id?: string;
+                /** @description Exact action, such as product_created, stock_in, promotion_updated, or coupon_created. */
+                action?: string;
+                /** @description Inclusive lower bound; a timezone designator is required. */
+                created_from?: string;
+                /** @description Inclusive upper bound; a timezone designator is required and must not precede created_from. */
+                created_to?: string;
+                /** @description Opaque cursor copied unchanged from next_cursor. */
+                cursor?: string;
+                /** @description Maximum records per page. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit page. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAuditPage"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    previewCartCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Read-only coupon estimate for the current cart. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponPreviewResponse"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            /** @description No coupon exists with the exact supplied code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminErrorResponse"];
+                };
+            };
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    adminListOperationSessions: {
+        parameters: {
+            query?: {
+                user_id?: number;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of sessions without key material. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationSessionPage"];
+                };
+            };
+            /** @description Invalid filter or pagination. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Administrator permission required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Core could not return the sessions. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminRevokeOperationSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid session identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Administrator permission required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Core could not confirm the operation. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminExpireOperationSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session expired. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid session identifier. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Administrator permission required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Core could not confirm the operation. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

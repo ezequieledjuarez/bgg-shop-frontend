@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react'
-import { fireEvent, screen, within } from '@testing-library/dom'
+import { fireEvent, screen, waitFor, within } from '@testing-library/dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type { components } from './types/generated/bff-api'
@@ -14,10 +14,16 @@ const products: components['schemas']['Product'][] = [
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
     const url = new URL(input.toString(), 'http://localhost')
+    if (url.pathname.endsWith('/product-categories')) {
+      return Promise.resolve(new Response(JSON.stringify([
+        'Juegos de Estrategia', 'Juegos Temáticos', 'Juegos Familiares', 'Juegos Party', 'Nueva categoría',
+      ]), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    }
     const search = url.searchParams.get('search')
+    const categoryName = url.searchParams.get('category_name')
     const items = search?.toLocaleLowerCase() === 'inexistente'
       ? []
-      : products
+      : products.filter((product) => !categoryName || product.category.includes(categoryName))
     return Promise.resolve(new Response(JSON.stringify({
       items,
       page: 1,
@@ -58,6 +64,95 @@ describe('Home', () => {
     expect(lastUrl.searchParams.get('search')).toBe('Devir')
     expect(lastUrl.searchParams.get('year_published')).toBe('2019')
     expect(lastUrl.searchParams.get('min_players')).toBe('2')
+  })
+
+  it('filters by category alongside other criteria and clears it', async () => {
+    render(<App />)
+    await screen.findAllByRole('article')
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: /año/i }), { target: { value: '2019' } })
+    const category = screen.getByRole('combobox', { name: /categoría/i })
+    await screen.findByRole('option', { name: 'Nueva categoría' })
+    expect(within(category).getByRole('option', { name: 'Juegos Party' })).toHaveValue('Juegos Party')
+    fireEvent.change(category, { target: { value: 'Juegos Temáticos' } })
+
+    await waitFor(() => {
+      const lastUrl = new URL(String(vi.mocked(fetch).mock.calls.at(-1)?.[0]), 'http://localhost')
+      expect(lastUrl.searchParams.get('category_name')).toBe('Juegos Temáticos')
+      expect(lastUrl.searchParams.get('year_published')).toBe('2019')
+    })
+    expect(await screen.findAllByRole('article')).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: "Aeon's End: Legacy" })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: /limpiar filtros/i }))
+    await waitFor(() => {
+      const lastUrl = new URL(String(vi.mocked(fetch).mock.calls.at(-1)?.[0]), 'http://localhost')
+      expect(lastUrl.searchParams.has('category_name')).toBe(false)
+      expect(lastUrl.searchParams.has('year_published')).toBe(false)
+    })
+    expect(category).toHaveValue('')
+    expect(await screen.findAllByRole('article')).toHaveLength(4)
+  })
+
+  it('allows retrying when category loading fails', async () => {
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    let categoryAttempts = 0
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      const url = new URL(input.toString(), 'http://localhost')
+      if (url.pathname.endsWith('/product-categories') && categoryAttempts++ === 0) {
+        return Promise.reject(new Error('BFF unavailable'))
+      }
+      return originalFetch(input, init)
+    })
+
+    render(<App />)
+    expect(await screen.findByText('No se pudieron cargar las categorías.')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar categorías' }))
+    expect(await screen.findByRole('option', { name: 'Juegos Party' })).toBeInTheDocument()
+    expect(screen.queryByText('No se pudieron cargar las categorías.')).not.toBeInTheDocument()
+  })
+
+  it('navigates pages and returns to the first page when filters change', async () => {
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      const url = new URL(input.toString(), 'http://localhost')
+      if (url.pathname.endsWith('/product-categories')) return originalFetch(input, init)
+      const page = Number(url.searchParams.get('page'))
+      const items = page === 1 ? products.slice(0, 2) : products.slice(2)
+      return Promise.resolve(new Response(JSON.stringify({
+        items, page, page_size: 2, total: 4, total_pages: 2,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    })
+
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Watergate' })).toBeVisible()
+    expect(screen.getByText('Página 1 de 2')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Página siguiente' }))
+    expect(await screen.findByRole('heading', { name: 'Pequeñas Grandes Tácticas' })).toBeVisible()
+    expect(screen.getByText('Página 2 de 2')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Página siguiente' })).toBeDisabled()
+    fireEvent.change(screen.getByRole('spinbutton', { name: /año/i }), { target: { value: '2019' } })
+    expect(await screen.findByRole('heading', { name: 'Watergate' })).toBeVisible()
+    const lastUrl = new URL(String(vi.mocked(fetch).mock.calls.at(-1)?.[0]), 'http://localhost')
+    expect(lastUrl.searchParams.get('page')).toBe('1')
+    expect(lastUrl.searchParams.get('year_published')).toBe('2019')
+  })
+
+  it('explains invalid ranges and hides recommended ordering', async () => {
+    render(<App />)
+    await screen.findAllByRole('article')
+    expect(screen.queryByRole('option', { name: 'Recomendados' })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('spinbutton', { name: /mínimo de jugadores/i }), { target: { value: '4' } })
+    const callCount = vi.mocked(fetch).mock.calls.length
+    fireEvent.change(screen.getByRole('spinbutton', { name: /máximo de jugadores/i }), { target: { value: '2' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('El mínimo de jugadores no puede superar el máximo.')
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(callCount)
+    fireEvent.change(screen.getByRole('spinbutton', { name: /máximo de jugadores/i }), { target: { value: '4' } })
+    expect(screen.queryByText('El mínimo de jugadores no puede superar el máximo.')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('spinbutton', { name: /precio mínimo/i }), { target: { value: '100' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /precio máximo/i }), { target: { value: '10' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('El precio mínimo no puede superar el máximo.')
   })
 
   it('shows and recovers from an empty result', async () => {

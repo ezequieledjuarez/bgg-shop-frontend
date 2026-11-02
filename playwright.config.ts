@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests/e2e',
-  globalSetup: './tests/e2e/global-setup.ts',
+  globalSetup: process.env.E2E_OPKEY_ISOLATED === 'true' ? undefined : './tests/e2e/global-setup.ts',
   timeout: 60_000,
   expect: { timeout: 10000 },
   fullyParallel: false,
@@ -10,7 +10,7 @@ export default defineConfig({
   reporter: [['list'], ['json', { outputFile: 'results/playwright-report.json' }]],
   use: {
     // storageState will be created by the global setup script
-    storageState: 'tests/e2e/storageState.json',
+    storageState: process.env.E2E_OPKEY_ISOLATED === 'true' ? undefined : 'tests/e2e/storageState.json',
     baseURL: process.env.VITE_API_BASE_URL ? process.env.VITE_API_BASE_URL.replace('/api/v1', '') : 'http://localhost:3000',
     headless: true,
     viewport: { width: 1280, height: 720 },
