@@ -55,7 +55,7 @@ src/
 
 ## Traceability and Evidence
 
-- Root as-built spec for this use case: pending verification (`../../../specs/006-wishlist-as-built/spec.md` is produced by a separate task in [`regenerate-plan-tasks.md`](../../../odd/tasks/regenerate-plan-tasks.md)).
+- Root as-built spec and closure: [Wishlist as-built spec](../../../specs/006-wishlist-as-built/spec.md).
 - BFF contract: [`openapi.yaml`](../../../bgg-shop-bff/specs/openapi.yaml).
 - ODD record: [`cu-c06-wishlist.md`](../../../odd/tasks/cu-c06-wishlist.md).
 

@@ -3,11 +3,13 @@
 **Branch**: `001-authentication` (retrospective; work landed on the feature branches recorded in the ODD documents) | **Date**: 2026-10-21 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-authentication/spec.md`
 
+**Status**: Closed and validated with exceptions on 2026-10-30; the owner accepted the missing duplicate-email and invalid-credential UI assertions.
+
 **Note**: Retrospective plan. It documents what the Frontend already implements for CU-C01; it does not propose new behavior.
 
 ## Summary
 
-Registration (`/register`) and login (`/login`) screens validate input in the browser and call the BFF REST endpoints `POST /api/v1/auth/register` and `POST /api/v1/auth/login`. A successful login stores the returned session in `sessionStorage` under `bgg-shop.session`, notifies the app, and navigates to the catalog. Logout is local only. Account creation, credential checks, and token issuance stay in the BFF/Core.
+Registration (`/register`) and login (`/login`) screens validate input in the browser and call the BFF REST endpoints `POST /api/v1/auth/register` and `POST /api/v1/auth/login`. A successful login stores the returned session in `sessionStorage` under `bgg-shop.session`, notifies the app, and navigates to the catalog. Logout calls the BFF and clears the local session after confirmation; an OpKey is revoked when present, but issued JWTs remain valid. Account creation, credential checks, and token issuance stay in the BFF/Core.
 
 ## Technical Context
 
@@ -18,7 +20,7 @@ Registration (`/register`) and login (`/login`) screens validate input in the br
 **Target Platform**: Modern browsers; served by Vite (dev) or static build
 **Project Type**: Web application (Frontend repository only; consumes the BFF)
 **Performance Goals**: N/A (no goals stated in the spec)
-**Constraints**: Frontend talks only to the BFF REST API (`../bgg-shop-bff/specs/openapi.yaml`); user-facing copy is Spanish; no token refresh, expiry handling, or server-side logout
+**Constraints**: Frontend talks only to the BFF REST API (`../bgg-shop-bff/specs/openapi.yaml`); user-facing copy is Spanish; JWT revocation and screen-level expiry enforcement are not provided.
 **Scale/Scope**: 2 screens (login, register), 1 session helper module, header navigation in `App.tsx`
 
 ## Constitution Check
@@ -27,7 +29,7 @@ Registration (`/register`) and login (`/login`) screens validate input in the br
 
 - Own the browser experience: PASS (form validation, session handling, and navigation live in `src/auth/` and `src/App.tsx`).
 - Generate API types from the BFF contract: PASS (`RegisterRequest`, `LoginRequest`, `LoginResponse`, `AuthSession` come from `src/types/generated/bff-api.d.ts`).
-- Protect browser users and credentials: PARTIAL, as documented in the spec: the session token lives in `sessionStorage`, and there is no expiry or server-side logout.
+- Protect browser users and credentials: PARTIAL, as documented in the spec: the session token lives in `sessionStorage`, and issued JWTs are not revoked on logout.
 - Verify user-facing changes: tests exist in `src/auth/AuthScreens.test.tsx`; see [tasks.md](./tasks.md) for evidence status.
 
 ## Project Structure

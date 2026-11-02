@@ -1,5 +1,7 @@
 # Tasks: Wishlist (As-Built)
 
+**Status**: Closed for the local scope with limitations on 2026-10-30; see the [canonical spec](../../../specs/006-wishlist-as-built/spec.md).
+
 **Input**: Design documents from `/specs/006-wishlist/`
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md)
 
@@ -46,8 +48,7 @@
 ## Evidence (only what the ODD/docs report)
 
 - [`cu-c06-wishlist.md`](../../../odd/tasks/cu-c06-wishlist.md) reports: Frontend commit `fbb6202` (`feat(frontend): add authenticated wishlist flow`) on `CU-06-wishlist`; focused/full Frontend tests, lint, and build passed (risk tier medium); final cross-service verification: Frontend 54 tests passed, build passed, lint passed with 11 warnings, `git diff --check` passed.
-- No live Core/PostgreSQL integration was run and the OpenAPI parser/validator was unavailable (per the ODD record); live end-to-end Wishlist flow in a browser: pending verification.
-- Server-side cleanup of purchased items is a Core behavior and is not verified by Frontend tests.
+- On 2026-10-30, [browser E2E](../../tests/e2e/cart-wishlist-purchase.spec.ts) verified authenticated Wishlist save and purchased-item cleanup against isolated BFF/Core and disposable PostgreSQL, with a simulated payment provider. The OpenAPI parser/validator was unavailable in the historical ODD record.
 
 ## Dependencies & Execution Order
 

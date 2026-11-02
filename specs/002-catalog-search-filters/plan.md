@@ -2,12 +2,13 @@
 
 **Branch**: `002-catalog-search-filters` (retrospective) | **Date**: 2026-10-21 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/002-catalog-search-filters/spec.md`
+**Status**: Closed with exceptions on 2026-10-30; see the [canonical closure](../../../specs/002-catalog-search-filters-as-built/spec.md).
 
 **Note**: Retrospective plan documenting the existing Frontend implementation of CU-C02.
 
 ## Summary
 
-The home catalog loads `GET /api/v1/products?page=1&page_size=100` from the BFF and renders product cards. Search text is applied on form submit; year, player-range, and price-range filters are added to the next request as `year_published`, `min_players`, `max_players`, `price_min`, and `price_max`. The screen distinguishes loading, error (with retry), empty (with clear filters), and result states. Price ordering and "Recomendados" are applied locally in the browser.
+The home catalog requests 100-product pages from `GET /api/v1/products` and category names from `GET /api/v1/product-categories`. Search text is applied on form submit; category, year, player-range, and price-range filters are sent as `category_name`, `year_published`, `min_players`, `max_players`, `price_min`, and `price_max`. Invalid ranges are explained before requesting. Price ordering applies locally to the current page; "Recomendados" is deferred.
 
 ## Technical Context
 
@@ -18,14 +19,14 @@ The home catalog loads `GET /api/v1/products?page=1&page_size=100` from the BFF 
 **Target Platform**: Modern browsers
 **Project Type**: Web application (Frontend only; consumes the BFF REST API, never Core GraphQL)
 **Performance Goals**: N/A
-**Constraints**: Only the first page (`page_size=100`) is requested; no pagination UI; no `category_id` control; filtering and validation stay in the BFF/Core
+**Constraints**: Pages contain at most 100 products; price sorting is local to each page; category names come from product data; BFF/Core remain the authoritative filtering and validation boundary.
 **Scale/Scope**: One catalog screen inside `CatalogApp` and `ProductCard` in `src/App.tsx`
 
 ## Constitution Check
 
 *Checked retrospectively against [`.specify/memory/constitution.md`](../../.specify/memory/constitution.md).*
 
-- Generate API types from the BFF contract: PASS for `Product` and `ProductPage`; the local `featured` property used by "Recomendados" is absent from the generated type (documented gap in the spec).
+- Generate API types from the BFF contract: PASS for `Product` and `ProductPage`; recommendations remain deferred.
 - Own the browser experience: PASS (state handling and local ordering in `src/App.tsx`).
 - Verify user-facing changes: tests in `src/App.test.tsx`; see [tasks.md](./tasks.md).
 

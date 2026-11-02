@@ -2,6 +2,7 @@
 
 **Branch**: `003-product-detail-reviews` (retrospective) | **Date**: 2026-10-21 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/003-product-detail-reviews/spec.md`
+**Status**: Closed with scope limitations on 2026-10-30; see the [canonical closure](../../../specs/003-product-detail-reviews-as-built/spec.md).
 
 **Note**: Retrospective plan documenting the existing Frontend implementation of CU-C03.
 
@@ -14,7 +15,7 @@ Selecting "Ver detalles" opens `/juegos/{slug}`; `ProductDetailScreen` requests 
 **Language/Version**: TypeScript ~5.4, React 19
 **Primary Dependencies**: Vite 5, `openapi-typescript`
 **Storage**: Reads the access token from `sessionStorage` (`bgg-shop.session`)
-**Testing**: Vitest, Testing Library, MSW; no dedicated detail/review test file exists
+**Testing**: Vitest, Testing Library, MSW, and read-only Playwright tests for detail/reviews
 **Target Platform**: Modern browsers
 **Project Type**: Web application (Frontend only; consumes the BFF)
 **Performance Goals**: N/A
@@ -27,7 +28,7 @@ Selecting "Ver detalles" opens `/juegos/{slug}`; `ProductDetailScreen` requests 
 
 - Generate API types from the BFF contract: PASS (`ProductDetail`, `CreateReviewRequest`, `CreateReviewResponse` in `src/types/generated/bff-api.d.ts`).
 - Protect browser users and credentials: PASS for header-based bearer use; error codes are mapped to buyer-facing copy in `src/ui/messages.ts`.
-- Verify user-facing changes: PARTIAL; detail and review interactions are not covered by Frontend tests (see [tasks.md](./tasks.md)).
+- Verify user-facing changes: component, read-only browser, and authenticated disposable-stack checks are recorded in [tasks.md](./tasks.md).
 
 ## Project Structure
 

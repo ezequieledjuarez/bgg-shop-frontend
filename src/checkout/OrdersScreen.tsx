@@ -188,6 +188,13 @@ export function PurchaseResultScreen() {
     <button className="primary-button" type="button" onClick={() => void retryPayment()} disabled={retrying || retryBlocked}>{retrying ? 'Preparando el pago…' : 'Reintentar pago'}</button>
   </main>
 
+  if (order.status === 'cancelled') return <main className="purchase-page" aria-labelledby="purchase-result-title">
+    <h1 id="purchase-result-title">Compra cancelada</h1>
+    <p role="status">Esta compra fue cancelada.</p>
+    <article className="order-detail"><h2>Resumen de la compra</h2><OrderSummary order={order} /></article>
+    <a className="text-button" href="/mis-compras">Ir a Mis Compras</a>
+  </main>
+
   if (order.status !== 'paid') return <main className="purchase-page" aria-labelledby="purchase-result-title">
     <h1 id="purchase-result-title">Pago pendiente</h1>
     <p role="status">Todavía no recibimos la confirmación del pago. Podés verificarlo nuevamente en unos instantes.</p>

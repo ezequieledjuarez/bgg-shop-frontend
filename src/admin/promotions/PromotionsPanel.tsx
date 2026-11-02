@@ -1,94 +1,94 @@
 import { useEffect, useState } from 'react'
-import apiFetch, { waitForToken } from '../../lib/apiClient'
-import createAbortController from '../../lib/abort'
+import apiFetch from '../../lib/apiClient'
+import type { components } from '../../types/generated/bff-api'
 import PromotionForm from './PromotionForm'
 
-type Promotion = {
-  id: number
-  name: string
-  discount_type: 'percentage' | 'fixed'
-  value: number
-  stackable: boolean
+type Promotion = components['schemas']['AdminPromotion']
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1'
+
+function isPromotion(value: unknown): value is Promotion {
+  if (typeof value !== 'object' || value === null || !('id' in value) || typeof value.id !== 'string') return false
+  return 'name' in value
+    && typeof value.name === 'string'
+    && 'discount_percent' in value
+    && typeof value.discount_percent === 'number'
+    && 'active' in value
+    && typeof value.active === 'boolean'
+    && (!('product_bgg_id' in value) || value.product_bgg_id === null || typeof value.product_bgg_id === 'number')
+}
+
+function isPromotionList(value: unknown): value is Promotion[] {
+  return Array.isArray(value) && value.every(isPromotion)
+}
+
+function responseMessage(response: Response): string {
+  if (response.status === 401) return 'Tu sesión expiró. Iniciá sesión nuevamente.'
+  if (response.status === 403) return 'No tenés permisos para administrar promociones.'
+  return 'No se pudieron cargar las promociones.'
 }
 
 export default function PromotionsPanel() {
   const pathname = window.location.pathname
-  const editingMatch = pathname.match(/^\/admin\/promotions\/(new|\d+)/)
-  const isForm = Boolean(editingMatch)
+  const routeId = pathname.match(/^\/admin\/promotions\/([^/]+)$/)?.[1]
+  const isForm = Boolean(routeId)
 
   const [promotions, setPromotions] = useState<Promotion[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loadState, setLoadState] = useState<'loading' | 'error' | 'success'>('loading')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (isForm) return
-    const controller = createAbortController()
-    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1'
-    
-
-    ;(async () => {
-      try {
-        await waitForToken(5000)
-        // Debug: log presence of token used for promotions list fetch
-        // eslint-disable-next-line no-console
-        console.info('Admin promotions list token present')
-        const res = await apiFetch(`${base}/admin/promotions?page=1&page_size=50`, { signal: controller.signal })
-        if (!res.ok) throw new Error('No se pudo cargar promociones')
-        const payload = (await res.json()) as { items: Promotion[] }
-        setPromotions(payload.items || [])
-      } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === 'AbortError') return
-        try {
-          // eslint-disable-next-line no-console
-          console.error('[PromotionsPanel] fetch error', { url: `${base}/admin/promotions`, error: err })
-        } catch (e) {
-          // ignore
-        }
-        setError(err instanceof Error ? err.message : 'Error desconocido')
-      } finally {
-        setLoading(false)
-      }
-    })()
+    const controller = new AbortController()
+    apiFetch(`${apiBaseUrl}/admin/promotions`, {
+      signal: controller.signal,
+      waitForTokenAttempts: 1,
+      waitForTokenTimeout: 5000,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(responseMessage(response))
+        const payload: unknown = await response.json()
+        if (!isPromotionList(payload)) throw new Error('La respuesta de promociones no es válida.')
+        setPromotions(payload)
+        setLoadState('success')
+      })
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted) return
+        setError(reason instanceof Error ? reason.message : 'No se pudieron cargar las promociones.')
+        setLoadState('error')
+      })
     return () => controller.abort()
   }, [isForm])
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Confirmar eliminación de la promoción?')) return
-    try {
-      const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1'
-      await waitForToken(5000)
-      const res = await apiFetch(`${base}/admin/promotions/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('No se pudo eliminar la promoción')
-      setPromotions((current) => current.filter((p) => p.id !== id))
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error')
-    }
-  }
 
   if (isForm) return <PromotionForm />
 
   return (
     <main className="admin-promotions">
-      <h1>Promociones (Admin)</h1>
-      <p>Crear, editar y previsualizar promociones.</p>
+      <h1>Promociones</h1>
+      <p>Administrá descuentos porcentuales asociados a productos.</p>
       <a className="primary-button" href="/admin/promotions/new">Crear promoción</a>
-      {loading ? (
-        <div role="status">Cargando promociones...</div>
-      ) : error ? (
-        <div role="alert">{error}</div>
-      ) : (
+      {loadState === 'loading' ? <p role="status">Cargando promociones...</p> : null}
+      {loadState === 'error' ? <p role="alert">{error}</p> : null}
+      {loadState === 'success' && promotions.length === 0 ? (
+        <p role="status">Todavía no hay promociones.</p>
+      ) : null}
+      {loadState === 'success' && promotions.length > 0 ? (
         <ul>
-          {promotions.map((p) => (
-            <li key={p.id}>
-              <strong>{p.name}</strong> — {p.discount_type === 'percentage' ? `${p.value}%` : new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(p.value)} {p.stackable ? '(stackable)' : ''}
+          {promotions.map((promotion) => (
+            <li key={promotion.id}>
+              <strong>{promotion.name}</strong>
+              {' — '}
+              {promotion.discount_percent}% de descuento
+              {' · '}
+              {promotion.product_bgg_id == null ? 'Todos los productos' : `Producto #${promotion.product_bgg_id}`}
+              {' · '}
+              {promotion.active ? 'Activa' : 'Inactiva'}
               {' '}
-              <a href={`/admin/promotions/${p.id}`}>Editar</a>
-              {' '}
-              <button type="button" onClick={() => void handleDelete(p.id)}>Eliminar</button>
+              <a href={`/admin/promotions/${encodeURIComponent(promotion.id)}`}>Editar</a>
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </main>
   )
 }

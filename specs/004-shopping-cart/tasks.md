@@ -1,5 +1,7 @@
 # Tasks: Shopping Cart (As-Built)
 
+**Status**: Closed for the local scope with limitations on 2026-10-30; see the [canonical spec](../../../specs/004-shopping-cart-as-built/spec.md).
+
 **Input**: Design documents from `/specs/004-shopping-cart/`
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md)
 
@@ -48,7 +50,7 @@
 
 - [`cu-c04-shopping-cart.md`](../../../odd/tasks/cu-c04-shopping-cart.md) reports: `npm run generate:types` completed; `npm test -- --run` 22 tests passed; `npm run build` passed; `npm run lint` completed with the existing single warning. Final suites: Frontend 22 passed.
 - Live check on rebuilt containers (BFF/Core side): add, cap with `INSUFFICIENT_STOCK` warning, removal, total recalculation, cookie persistence, no stock reservation.
-- Not live-verified per ODD: Frontend UI in a browser (covered by MSW tests) and guest→account merge on login; pending verification.
+- On 2026-10-30, [browser E2E](../../tests/e2e/cart-wishlist-purchase.spec.ts) verified persistence, guest-to-account merge, and cart cleanup against an isolated BFF/Core/PostgreSQL stack with simulated payment. Full clean-database bootstrap remains unverified.
 - The ODD record states no commits were made at that point (delivery strategy pending); Frontend implementation commit identity: pending verification.
 - Spec commit `6a615fdd8e72af7b3c838daca8b83b4d76d844a4` (docs only, per [`derive-project-specs.md`](../../../odd/tasks/derive-project-specs.md)).
 

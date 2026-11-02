@@ -1002,6 +1002,17 @@ describe('purchase checkout and orders', () => {
     await waitFor(() => expect(confirmCalls).toBe(2))
   })
 
+  it('shows a cancelled order without offering payment verification or retry', async () => {
+    confirmationOrder = { ...approvedOrder, status: 'cancelled', invoice: null }
+    at(`/compra/resultado?payment_id=pay-cancelled&order_id=${orderId}`)
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Compra cancelada' })).toBeInTheDocument()
+    expect(screen.getByText('Estado: Cancelada')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Verificar de nuevo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar pago' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Descargar factura' })).not.toBeInTheDocument()
+  })
+
   it('explains that a paid stock conflict requires support', async () => {
     confirmationOrder = { ...approvedOrder, status: 'paid_stock_conflict', invoice: null }
     at(`/compra/resultado?payment_id=pay-conflict&external_reference=${orderId}`)

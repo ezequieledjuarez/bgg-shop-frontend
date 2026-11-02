@@ -120,7 +120,8 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
       });
       const payload = await response.json() as {
         user?: { id: string; email: string; first_name: string; last_name: string; is_active: boolean };
-        session?: { access_token: string; refresh_token?: string | null; csrf_token?: string | null } | null;
+        session?: { access_token: string; refresh_token?: string | null; csrf_token?: string | null;
+          op_key?: string; op_key_expires_at?: string | null; ops?: string[] | null } | null;
         errors?: Array<{ field?: string[] | null; code?: string; message?: string }>;
       };
       if (!response.ok) {

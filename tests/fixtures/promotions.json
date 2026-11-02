@@ -1,0 +1,10 @@
+{
+  "promotions": [
+    {
+      "id": "promo-1",
+      "title": "Spring Sale",
+      "percentage": 20,
+      "applicable_product_ids": ["prod-1"]
+    }
+  ]
+}

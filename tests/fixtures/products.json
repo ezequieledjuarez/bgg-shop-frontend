@@ -1,0 +1,22 @@
+{
+  "products": [
+    {
+      "id": "prod-1",
+      "name": "Watergate: The Board Game",
+      "slug": "watergate",
+      "price": 49.99,
+      "variants": [
+        { "id": "v1", "sku": "WG-STD", "stock": 10, "min_allowed": 1, "reserved": 0 }
+      ]
+    },
+    {
+      "id": "prod-2",
+      "name": "Meeple Madness",
+      "slug": "meeple-madness",
+      "price": 29.5,
+      "variants": [
+        { "id": "v2", "sku": "MM-STD", "stock": 0, "min_allowed": 0, "reserved": 0 }
+      ]
+    }
+  ]
+}

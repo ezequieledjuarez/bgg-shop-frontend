@@ -1,7 +1,7 @@
 # Frontend Functional Specification: Shopping Cart (As-Built)
 
 **Input**: CU-C04
-**Status**: As-built / retrospective
+**Status**: Closed for the local scope with limitations on 2026-10-30; see the [canonical spec](../../../specs/004-shopping-cart-as-built/spec.md).
 **Scope**: Adding products from the catalog and displaying/editing the buyer's cart. Cart identity, persistence, stock capping, and guest-to-account merging belong to the BFF/Core as described in the [canonical CU-C04 specification](../../../specs/004-shopping-cart-as-built/spec.md).
 
 ## Frontend responsibilities

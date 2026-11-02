@@ -1,3 +1,5 @@
+import { operationKeyFor } from '../auth/session'
+
 // Minimal HTTP client wrapper to centralize Authorization injection,
 // wait-for-token logic and correlation header generation.
 export async function waitForToken(timeout = 10000, interval = 100): Promise<string | undefined> {
@@ -32,10 +34,12 @@ export async function apiFetch(input: RequestInfo, init?: ApiFetchOptions): Prom
   const timeout = opts.waitForTokenTimeout ?? 10000
   const interval = opts.waitForTokenInterval ?? 100
   const attempts = opts.waitForTokenAttempts ?? 3
+  const headers = new Headers(opts.headers ?? {})
+  const opKey = headers.has('Authorization') ? undefined : operationKeyFor(input, opts.method ?? 'GET')
 
   // Try to obtain a token, retrying and signaling the app to refresh if missing.
   let token: string | undefined
-  for (let attempt = 1; attempt <= attempts; attempt++) {
+  for (let attempt = 1; !opKey && !headers.has('Authorization') && attempt <= attempts; attempt++) {
     token = await waitForToken(timeout, interval)
     if (token) break
     if (attempt < attempts) {
@@ -50,8 +54,9 @@ export async function apiFetch(input: RequestInfo, init?: ApiFetchOptions): Prom
   }
 
   // build headers
-  const headers = new Headers(opts.headers ?? {})
-  if (token) {
+  if (opKey) {
+    headers.set('X-Op-Key', opKey)
+  } else if (token) {
     if (!headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`)
   }
 
@@ -94,7 +99,7 @@ export async function apiFetch(input: RequestInfo, init?: ApiFetchOptions): Prom
     // ignore
   }
 
-  if (!token) {
+  if (!token && !opKey && !headers.has('Authorization')) {
     // Final failure after retries — caller should handle skipping unauthenticated calls.
     throw new Error('Authentication token not available after retries')
   }
