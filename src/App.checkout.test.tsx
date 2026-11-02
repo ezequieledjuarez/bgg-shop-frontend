@@ -909,7 +909,7 @@ describe('purchase checkout and orders', () => {
     server.use(http.get('*/api/v1/cart', () => HttpResponse.json(cart)))
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Proceder al Pago' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('Iniciá sesión para continuar con tu compra.')
+    expect(await screen.findByText('Iniciá sesión para continuar con tu compra.')).toHaveAttribute('role', 'status')
     expect(checkoutCalls).toBe(0)
   })
 
