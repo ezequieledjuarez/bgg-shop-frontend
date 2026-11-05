@@ -31,6 +31,7 @@ const queuePage = (items: AdminReview[]): AdminReviewPage => ({
 })
 
 let currentStatus: AdminReview['status'] = 'PENDING'
+let currentDeleted = false
 let queueRequests = 0
 let moderationRequest: ModerateReviewRequest | undefined
 
@@ -60,16 +61,22 @@ const publicDetail = (): ProductDetail => ({
 const server = setupServer(
   http.get('*/api/v1/admin/reviews', () => {
     queueRequests += 1
-    return HttpResponse.json(queuePage([{ ...pendingReview, status: currentStatus }]))
+    return HttpResponse.json(queuePage(
+      currentDeleted ? [] : [{ ...pendingReview, status: currentStatus }],
+    ))
   }),
   http.post('*/api/v1/admin/reviews/:review_id/actions', async ({ request }) => {
     moderationRequest = await request.json() as ModerateReviewRequest
-    currentStatus = moderationRequest.action === 'REJECT' ? 'REJECTED' : 'ACCEPTED'
+    if (moderationRequest.action === 'DELETE') {
+      currentDeleted = true
+    } else {
+      currentStatus = moderationRequest.action === 'REJECT' ? 'REJECTED' : 'ACCEPTED'
+    }
     const response: ModerateReviewResponse = {
       review_id: pendingReview.review_id,
       status: currentStatus,
-      deleted: false,
-      publicly_visible: currentStatus === 'ACCEPTED',
+      deleted: currentDeleted,
+      publicly_visible: !currentDeleted && currentStatus === 'ACCEPTED',
       cache_refresh_pending: false,
     }
     return HttpResponse.json(response)
@@ -80,6 +87,7 @@ const server = setupServer(
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 beforeEach(() => {
   currentStatus = 'PENDING'
+  currentDeleted = false
   queueRequests = 0
   moderationRequest = undefined
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
@@ -228,6 +236,39 @@ describe('ReviewsPanel', () => {
       'No se pudo completar la moderación en este momento.',
     )
     expect(screen.queryByText('private upstream secret')).not.toBeInTheDocument()
+    expect(queueRequests).toBe(1)
+  })
+
+  it('soft-deletes a review, confirms success, and refreshes the moderation queue', async () => {
+    render(<ReviewsPanel />)
+    expect(await screen.findByText('Great game')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /eliminar reseña/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'La moderación se completó correctamente.',
+    )
+    await waitFor(() => expect(queueRequests).toBe(2))
+    expect(moderationRequest).toEqual({ action: 'DELETE' })
+    expect(await screen.findByText(/no hay reseñas para moderar/i)).toBeInTheDocument()
+    expect(screen.queryByText('Great game')).not.toBeInTheDocument()
+  })
+
+  it('shows safe failure feedback when soft-deleting a review fails without refreshing the queue', async () => {
+    server.use(http.post('*/api/v1/admin/reviews/:review_id/actions', () => HttpResponse.json(
+      { detail: 'private upstream secret' },
+      { status: 502 },
+    )))
+    render(<ReviewsPanel />)
+    expect(await screen.findByText('Great game')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /eliminar reseña/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se pudo completar la moderación en este momento.',
+    )
+    expect(screen.queryByText('private upstream secret')).not.toBeInTheDocument()
+    expect(screen.getByText('Great game')).toBeInTheDocument()
     expect(queueRequests).toBe(1)
   })
 })
