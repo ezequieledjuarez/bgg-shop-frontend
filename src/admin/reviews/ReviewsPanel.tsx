@@ -72,9 +72,9 @@ function actionErrorMessage(status: number): string {
   if (status === 401) return 'Tu sesión no está autenticada o expiró. Iniciá sesión nuevamente.'
   if (status === 403) return 'No tenés permisos para moderar reseñas.'
   if (status === 404) return 'La reseña ya no está disponible.'
-  if (status === 409) return 'La reseña cambió de estado y no se pudo aceptar.'
+  if (status === 409) return 'La reseña cambió de estado y no se pudo moderar.'
   if (status === 502) return 'No se pudo completar la moderación en este momento.'
-  return 'No se pudo aceptar la reseña. Intentá nuevamente.'
+  return 'No se pudo completar la moderación. Intentá nuevamente.'
 }
 
 function statusLabel(status: ReviewStatus): string {
@@ -146,7 +146,10 @@ export default function ReviewsPanel() {
 
   useEffect(() => () => actionController.current?.abort(), [])
 
-  async function acceptReview(reviewId: number) {
+  async function moderateReview(
+    reviewId: number,
+    action: ModerateReviewRequest['action'],
+  ) {
     actionController.current?.abort()
     const controller = new AbortController()
     actionController.current = controller
@@ -155,7 +158,7 @@ export default function ReviewsPanel() {
     setActionNotice('')
 
     try {
-      const request: ModerateReviewRequest = { action: 'ACCEPT' }
+      const request: ModerateReviewRequest = { action }
       const response = await apiFetch(`${apiBaseUrl}/admin/reviews/${reviewId}/actions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -194,7 +197,7 @@ export default function ReviewsPanel() {
   return (
     <main>
       <h1>Moderación de reseñas</h1>
-      <p>Revisá las reseñas de los juegos y aceptá las que quieras publicar.</p>
+      <p>Revisá la cola y decidí qué reseñas publicar o rechazar.</p>
 
       {actionNotice && <p role="status">{actionNotice}</p>}
       {actionError && <p role="alert">{actionError}</p>}
@@ -224,13 +227,22 @@ export default function ReviewsPanel() {
                   <p>{review.body}</p>
                   <p>Estado: {statusLabel(review.status)}</p>
                   <p>Enviada el {formatCreatedAt(review.created_at)}</p>
-                  {review.status === 'PENDING' && (
+                  {review.status !== 'REJECTED' && (
                     <button
                       type="button"
-                      onClick={() => void acceptReview(review.review_id)}
+                      onClick={() => void moderateReview(review.review_id, 'REJECT')}
                       disabled={actionInProgress}
                     >
-                      {actionInProgress ? 'Aceptando...' : 'Aceptar reseña'}
+                      {actionInProgress ? 'Procesando...' : 'Rechazar reseña'}
+                    </button>
+                  )}
+                  {review.status !== 'ACCEPTED' && (
+                    <button
+                      type="button"
+                      onClick={() => void moderateReview(review.review_id, 'ACCEPT')}
+                      disabled={actionInProgress}
+                    >
+                      {actionInProgress ? 'Procesando...' : 'Aceptar reseña'}
                     </button>
                   )}
                 </article>
