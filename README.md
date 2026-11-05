@@ -28,6 +28,19 @@ durante la escritura. El servidor local se publica en
 | BFF | `GET` | `/api/v1/products?page=1&page_size=20` | Filtros REST del catálogo. | `ProductPage` REST o `400`/`502`. |
 | Core | `POST` | `/graphql/` | No se invoca directamente desde el Frontend; el BFF lo consume. | Respuesta GraphQL o `errors`, según el contrato del Core. |
 
+### Panel de métricas de ventas (Admin)
+
+La ruta `/admin/sales` está disponible para cuentas staff/superuser y consume
+en paralelo `GET /api/v1/admin/sales-metrics` y
+`GET /api/v1/admin/sales-metrics/categories` del BFF. La primera carga omite
+`from` y `to` para usar el rango predeterminado de 30 días; los filtros de
+categoría (`category`) e ID BGG (`product_id`) se envían como parámetros
+repetidos. El panel muestra revenue, órdenes pagas, productos principales,
+estados de pago/despacho y revenue diario. Los tipos se regeneran desde el
+OpenAPI del BFF con `npm run generate:types`; no se editan manualmente.
+La semántica y los errores de los endpoints están en el
+[`README del BFF`](../bgg-shop-bff/README.md).
+
 La respuesta del BFF usa `snake_case` (`bgg_id`, `page_size`,
 `total_pages`, etc.) y devuelve `items` con los campos del producto. El Core
 usa GraphQL `camelCase` (`bggId`, `pageSize`, `totalPages`). Para consultar
