@@ -453,6 +453,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List reviews for moderation
+         * @description Returns non-deleted reviews in PENDING, ACCEPTED, or REJECTED state. Omitting status returns all three. Order is created_at DESC, then review id DESC. page is one-based, page_size defaults to 50 and is capped at 100. Responses are not cacheable. Requires an authenticated active staff or superuser identity; an operation key alone is insufficient.
+         */
+        get: operations["adminListReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reviews/{review_id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept, reject, or soft-delete a review
+         * @description Applies one moderation action using Core as the authority for current state. ACCEPT on an accepted review and REJECT on a rejected review are successful idempotent no-ops. Repeated DELETE is also idempotent success. Core locks the review row and serializes actions; the last serialized action is final. An unknown ID or a non-delete action on a soft-deleted review returns 404. Return 409 only for a genuinely invalid transition, not for a stale queue view or concurrent action. DELETE retains the row, sets its separate deleted marker, excludes it from public visibility and aggregation, and reports deleted=true. If Core commits but cache invalidation remains pending after bounded retries, the response still reports success and sets cache_refresh_pending=true; public detail may be temporarily stale until refresh succeeds. Requires an authenticated active staff or superuser identity; an operation key alone is insufficient.
+         */
+        post: operations["adminModerateReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products": {
         parameters: {
             query?: never;
@@ -1283,6 +1323,51 @@ export interface components {
             /** @enum {string|null} */
             reason?: "INACTIVE" | "NOT_YET_VALID" | "EXPIRED" | "EXHAUSTED" | "DISCOUNT_LIMIT_EXCEEDED" | "EMPTY_CART" | null;
         };
+        /** @enum {string} */
+        ReviewModerationStatus: "PENDING" | "ACCEPTED" | "REJECTED";
+        /** @enum {string} */
+        ReviewModerationAction: "ACCEPT" | "REJECT" | "DELETE";
+        AdminReview: {
+            review_id: number;
+            game_bgg_id: number;
+            game_name: string;
+            rating: number;
+            body: string;
+            /** Format: date-time */
+            created_at: string;
+            status: components["schemas"]["ReviewModerationStatus"];
+        };
+        AdminReviewPage: {
+            items: components["schemas"]["AdminReview"][];
+            page: number;
+            page_size: number;
+            total: number;
+            total_pages: number;
+        };
+        ModerateReviewRequest: {
+            action: components["schemas"]["ReviewModerationAction"];
+        };
+        ModerateReviewResponse: {
+            review_id: number;
+            /** @description Retained moderation status; soft-deletion is represented separately. */
+            status: components["schemas"]["ReviewModerationStatus"];
+            deleted: boolean;
+            publicly_visible: boolean;
+            /** @description True when Core committed the action but BFF cache invalidation has not yet succeeded after bounded retries. The mutation itself succeeded; public detail may remain temporarily stale until refresh completes. */
+            cache_refresh_pending: boolean;
+        };
+        ReviewModerationFieldErrorResponse: {
+            errors: {
+                field?: string;
+                /** @enum {string} */
+                code: "INVALID" | "REVIEW_NOT_FOUND" | "INVALID_TRANSITION";
+                message: string;
+            }[];
+        };
+        ReviewModerationUpstreamFailureResponse: {
+            /** @constant */
+            error: "upstream GraphQL request failed";
+        };
         AdminFieldErrorResponse: {
             errors: {
                 /** @description Public input field name, when applicable. */
@@ -1417,6 +1502,66 @@ export interface components {
         };
     };
     responses: {
+        /** @description Invalid query or action; does not reveal upstream details. */
+        ReviewModerationInvalidRequest: {
+            headers: {
+                "Cache-Control": components["headers"]["AdminNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ReviewModerationFieldErrorResponse"];
+            };
+        };
+        /** @description Missing or invalid authentication. */
+        ReviewModerationUnauthorized: {
+            headers: {
+                "Cache-Control": components["headers"]["AdminNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"];
+            };
+        };
+        /** @description Authenticated user is not an active staff member or superuser. */
+        ReviewModerationForbidden: {
+            headers: {
+                "Cache-Control": components["headers"]["AdminNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"];
+            };
+        };
+        /** @description The review ID is unknown, or the review is soft-deleted and the requested action is not DELETE. DELETE on an already soft-deleted review succeeds. */
+        ReviewModerationNotFound: {
+            headers: {
+                "Cache-Control": components["headers"]["AdminNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminErrorResponse"];
+            };
+        };
+        /** @description A genuinely invalid state transition identified by Core. Concurrency, stale queue data, same-state actions, and repeated DELETE are not conflicts. */
+        ReviewModerationConflict: {
+            headers: {
+                "Cache-Control": components["headers"]["AdminNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ReviewModerationFieldErrorResponse"];
+            };
+        };
+        /** @description Core could not complete the request before committing a mutation; upstream details are not exposed. A committed mutation with pending cache refresh is returned as 200 with cache_refresh_pending=true instead. */
+        ReviewModerationUpstreamFailure: {
+            headers: {
+                "Cache-Control": components["headers"]["AdminNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ReviewModerationUpstreamFailureResponse"];
+            };
+        };
         /** @description Sanitized error; a valid movement UUID is included when available. */
         AdminStockMovementRequestError: {
             headers: {
@@ -1554,6 +1699,8 @@ export interface components {
     };
     requestBodies: never;
     headers: {
+        /** @description Prevents caching of moderation data and responses. */
+        AdminNoStore: "no-store";
         /** @description Prevents credit responses from being cached. */
         CreditCacheControl: "no-store";
     };
@@ -3054,6 +3201,97 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    adminListReviews: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Optional single moderation-state filter.
+                 * @example PENDING
+                 */
+                status?: components["schemas"]["ReviewModerationStatus"];
+                /** @description One-based page number. */
+                page?: number;
+                /** @description Results per page; defaults to 50 and cannot exceed 100. */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Moderation queue page; an empty queue returns an empty items array. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["AdminNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "review_id": 501,
+                     *           "game_bgg_id": 13,
+                     *           "game_name": "Catan",
+                     *           "rating": 5,
+                     *           "body": "Great game",
+                     *           "created_at": "2026-11-05T16:30:00Z",
+                     *           "status": "PENDING"
+                     *         }
+                     *       ],
+                     *       "page": 1,
+                     *       "page_size": 50,
+                     *       "total": 1,
+                     *       "total_pages": 1
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AdminReviewPage"];
+                };
+            };
+            400: components["responses"]["ReviewModerationInvalidRequest"];
+            401: components["responses"]["ReviewModerationUnauthorized"];
+            403: components["responses"]["ReviewModerationForbidden"];
+            502: components["responses"]["ReviewModerationUpstreamFailure"];
+        };
+    };
+    adminModerateReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Existing product_review identifier.
+                 * @example 501
+                 */
+                review_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerateReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Action applied or already in the requested state. A committed Core mutation remains successful even if cache refresh is pending. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["AdminNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerateReviewResponse"];
+                };
+            };
+            400: components["responses"]["ReviewModerationInvalidRequest"];
+            401: components["responses"]["ReviewModerationUnauthorized"];
+            403: components["responses"]["ReviewModerationForbidden"];
+            404: components["responses"]["ReviewModerationNotFound"];
+            409: components["responses"]["ReviewModerationConflict"];
+            502: components["responses"]["ReviewModerationUpstreamFailure"];
         };
     };
     adminListProducts: {
