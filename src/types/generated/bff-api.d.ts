@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/internal/v1/catalog-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invalidate public catalog caches from Core
+         * @description Accepts a minimal versioned catalog event authenticated by an HMAC-SHA256 signature over the exact request body. This internal endpoint does not accept product, customer, or payment payloads.
+         */
+        post: operations["receiveCatalogEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -553,13 +573,13 @@ export interface paths {
         };
         /**
          * List promotions
-         * @description Proposed contract based on the existing BFF adapter. A promotion may reference one product; at most one active promotion may reference each product. Requires an active authenticated user with is_staff or is_superuser. Runtime conformance remains to be verified.
+         * @description Lists admin store promotions, including global offers, and excludes coupon-linked promotion rows. A product-specific eligible promotion wins for its product even when a global percentage is higher; otherwise the highest eligible global percentage applies. Promotions never stack. Product-specific promotions retain at most one active offer per product. Requires an active authenticated user with is_staff or is_superuser. Runtime conformance remains to be verified.
          */
         get: operations["adminListPromotions"];
         put?: never;
         /**
          * Create a promotion
-         * @description Proposed contract for the existing basic adapter. Percentage discounts range from zero through 50, inclusive. Requires an active authenticated user with is_staff or is_superuser. Runtime conformance remains to be verified.
+         * @description Proposed contract for the existing basic adapter. Percentage discounts range from zero through 50, inclusive. The optional nullable product_bgg_id creates a global store offer when omitted or null. Product-specific eligible offers take precedence over global offers; otherwise the highest eligible global percentage applies. Offers do not stack, and coupon-linked rows are not store promotions. Requires an active authenticated user with is_staff or is_superuser. Runtime conformance remains to be verified.
          */
         post: operations["adminCreatePromotion"];
         delete?: never;
@@ -578,7 +598,7 @@ export interface paths {
         get?: never;
         /**
          * Update a promotion
-         * @description Proposed contract; Core mapping remains to be verified. A promotion may reference one product, with at most one active promotion per product. Requires an active authenticated user with is_staff or is_superuser.
+         * @description Updates a promotion partially; explicitly setting product_bgg_id to null clears its product link and makes it a global store offer. Product-specific eligible offers take precedence over global offers; otherwise the highest eligible global percentage applies. Offers do not stack, and coupon-linked rows are not store promotions. Product-specific promotions retain at most one active offer per product. Requires an active authenticated user with is_staff or is_superuser.
          */
         put: operations["adminUpdatePromotion"];
         post?: never;
@@ -644,6 +664,46 @@ export interface paths {
          * @description Returns product, stock, promotion, and coupon audit records ordered by created_at DESC, id DESC using opaque signed cursor pagination. All filters are optional exact matches except the inclusive UTC date range. Date-times must include a timezone designator and are normalized to UTC. Values stored under keys naming credentials, tokens, passwords, secrets, authorization data, or payment/card data are replaced with "[REDACTED]" before the response is returned. Responses are not cacheable. Requires an active staff or superuser account.
          */
         get: operations["adminListAuditRecords"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sales-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get administrative sales metrics
+         * @description Returns gross sales metrics for an active staff or superuser account. from and to are individually optional timezone-aware ISO instants normalized to UTC and define the half-open range [from, to). Callers must provide both bounds or omit both; if exactly one is supplied, the request returns INVALID and identifies the missing bound in field. When both are omitted, the range defaults to the last 30 days. The maximum range is 366 days. Revenue and orders_count use paid orders by paid_at; payment and dispatch status counts use orders by created_at. Gross revenue is the sum of purchase-order line subtotals and may differ from the order total. Category filtering uses exact stored category strings; category and product filters restrict matching lines, and each matching order is counted once. Dispatch status is derived at query time from paid_at: Pendiente for pending_payment, En preparación before 24 hours, Enviado from 24 to less than 72 hours, and Entregado at 72 hours or later. pickup orders follow the same rule; rejected, cancelled and paid_stock_conflict orders have no dispatch status. Invalid input returns 400. Responses are not cacheable. Runtime behavior is planned.
+         */
+        get: operations["adminGetSalesMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sales-metrics/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List sales-metrics category filters
+         * @description Returns distinct stored product category strings for the sales-metrics filter. Requires an active staff or superuser account. Responses are not cacheable. Runtime behavior is planned.
+         */
+        get: operations["adminGetSalesCategories"];
         put?: never;
         post?: never;
         delete?: never;
@@ -747,6 +807,24 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CatalogEvent: {
+            /** Format: uuid */
+            event_id: string;
+            /** @enum {string} */
+            event_type: "product.changed" | "stock.changed" | "promotion.changed";
+            /**
+             * Format: date-time
+             * @description UTC timestamp ending in Z or with a zero UTC offset.
+             */
+            occurred_at: string;
+            /**
+             * @description Must match the event type prefix; stock aggregate IDs are product BGG IDs.
+             * @enum {string}
+             */
+            aggregate_type: "product" | "stock" | "promotion";
+            /** @description Product BGG ID for product or stock events; promotion ID for promotion events. */
+            aggregate_id: string;
+        };
         AuthRefreshRequest: {
             refresh_token?: string;
         };
@@ -1072,7 +1150,7 @@ export interface components {
             name?: string;
             /** @description Percentage discount from zero through 50, inclusive. */
             discount_percent?: number;
-            /** @description Product BGG identifier, or null for a product-agnostic promotion. */
+            /** @description Optional product BGG identifier; omitted or null means a global store offer. For each product, an eligible specific offer wins; otherwise the highest eligible global percentage applies. Offers do not stack. Coupon-linked promotion rows are not store offers. */
             product_bgg_id?: number | null;
             /** @description Manual switch independent of validity dates. A disabled promotion must not apply even within its validity period; an enabled promotion remains subject to its dates. Existing promotions remain inactive when the field is introduced. At most one active promotion may reference each product. */
             active?: boolean;
@@ -1135,6 +1213,37 @@ export interface components {
             items: components["schemas"]["AdminAuditRecord"][];
             /** @description Opaque cursor for the next page, or null at the end. */
             next_cursor: string | null;
+        };
+        AdminSalesMetrics: {
+            /** @description Gross ARS revenue from paid-order line subtotals. */
+            revenue_total: number;
+            /** @description Number of matching paid orders, counted once per order. */
+            orders_count: number;
+            top_products: components["schemas"]["AdminSalesTopProduct"][];
+            orders_by_dispatch_status: components["schemas"]["AdminSalesStatusCount"][];
+            orders_by_payment_status: components["schemas"]["AdminSalesStatusCount"][];
+            revenue_by_day: components["schemas"]["AdminSalesRevenueByDay"][];
+        };
+        AdminSalesTopProduct: {
+            bgg_id: number;
+            name: string;
+            units: number;
+            /** @description Gross ARS revenue from matching line subtotals. */
+            revenue: number;
+        };
+        AdminSalesRevenueByDay: {
+            /**
+             * Format: date
+             * @description UTC calendar day.
+             */
+            date: string;
+            /** @description Gross ARS revenue from matching line subtotals. */
+            revenue: number;
+        };
+        AdminSalesStatusCount: {
+            /** @description Payment status or derived dispatch status. */
+            status: string;
+            count: number;
         };
         AdminCoupon: {
             id: number;
@@ -1452,6 +1561,58 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    receiveCatalogEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description HMAC-SHA256 of the exact request body, prefixed with sha256=. */
+                "X-Catalog-Event-Signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogEvent"];
+            };
+        };
+        responses: {
+            /** @description Event accepted and public catalog cache generation advanced. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Event envelope is invalid. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signature is missing or invalid. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Shared-secret configuration or cache invalidation is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     registerAccount: {
         parameters: {
             query?: never;
@@ -3407,6 +3568,63 @@ export interface operations {
                 };
             };
             400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+            502: components["responses"]["AdminUpstreamFailure"];
+        };
+    };
+    adminGetSalesMetrics: {
+        parameters: {
+            query?: {
+                /** @description Optional inclusive UTC lower bound; provide together with to or omit both bounds. A timezone designator is required. */
+                from?: string;
+                /** @description Optional exclusive UTC upper bound; provide together with from or omit both bounds. A timezone designator is required. */
+                to?: string;
+                /** @description Exact stored category filter; repeat to select multiple categories. */
+                category?: string[];
+                /** @description Product BGG identifier filter; repeat to select multiple products. */
+                product_id?: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sales metrics. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSalesMetrics"];
+                };
+            };
+            400: components["responses"]["AdminInvalidRequest"];
+            401: components["responses"]["AdminUnauthorized"];
+            403: components["responses"]["AdminForbidden"];
+        };
+    };
+    adminGetSalesCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Distinct stored category strings. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
             401: components["responses"]["AdminUnauthorized"];
             403: components["responses"]["AdminForbidden"];
             502: components["responses"]["AdminUpstreamFailure"];
