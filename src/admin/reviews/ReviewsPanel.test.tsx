@@ -22,8 +22,6 @@ const pendingReview: AdminReview = {
   status: 'PENDING',
 }
 
-const acceptedReview: AdminReview = { ...pendingReview, status: 'ACCEPTED' }
-
 const queuePage = (items: AdminReview[]): AdminReviewPage => ({
   items,
   page: 1,
@@ -32,7 +30,7 @@ const queuePage = (items: AdminReview[]): AdminReviewPage => ({
   total_pages: items.length === 0 ? 0 : 1,
 })
 
-let accepted = false
+let currentStatus: AdminReview['status'] = 'PENDING'
 let queueRequests = 0
 let moderationRequest: ModerateReviewRequest | undefined
 
@@ -51,10 +49,10 @@ const publicDetail = (): ProductDetail => ({
   publisher: 'Example Publisher',
   image_url: '/watergate.webp',
   review_summary: {
-    approved_review_count: accepted ? 1 : 0,
-    average_rating: accepted ? 5 : null,
+    approved_review_count: currentStatus === 'ACCEPTED' ? 1 : 0,
+    average_rating: currentStatus === 'ACCEPTED' ? 5 : null,
   },
-  approved_reviews: accepted
+  approved_reviews: currentStatus === 'ACCEPTED'
     ? [{ rating: 5, body: pendingReview.body, created_at: pendingReview.created_at }]
     : [],
 })
@@ -62,16 +60,16 @@ const publicDetail = (): ProductDetail => ({
 const server = setupServer(
   http.get('*/api/v1/admin/reviews', () => {
     queueRequests += 1
-    return HttpResponse.json(queuePage([accepted ? acceptedReview : pendingReview]))
+    return HttpResponse.json(queuePage([{ ...pendingReview, status: currentStatus }]))
   }),
   http.post('*/api/v1/admin/reviews/:review_id/actions', async ({ request }) => {
     moderationRequest = await request.json() as ModerateReviewRequest
-    accepted = true
+    currentStatus = moderationRequest.action === 'REJECT' ? 'REJECTED' : 'ACCEPTED'
     const response: ModerateReviewResponse = {
       review_id: pendingReview.review_id,
-      status: 'ACCEPTED',
+      status: currentStatus,
       deleted: false,
-      publicly_visible: true,
+      publicly_visible: currentStatus === 'ACCEPTED',
       cache_refresh_pending: false,
     }
     return HttpResponse.json(response)
@@ -81,7 +79,7 @@ const server = setupServer(
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 beforeEach(() => {
-  accepted = false
+  currentStatus = 'PENDING'
   queueRequests = 0
   moderationRequest = undefined
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
@@ -162,7 +160,7 @@ describe('ReviewsPanel', () => {
         publicly_visible: true,
         cache_refresh_pending: true,
       }
-      accepted = true
+      currentStatus = 'ACCEPTED'
       return HttpResponse.json(response)
     }))
     render(<ReviewsPanel />)
@@ -174,5 +172,62 @@ describe('ReviewsPanel', () => {
       'La acción se completó, pero la actualización de la vista pública está pendiente.',
     )
     await waitFor(() => expect(queueRequests).toBe(2))
+  })
+
+  it('rejects an accepted review, displays the rejected status, and refreshes its public state', async () => {
+    currentStatus = 'ACCEPTED'
+    const panel = render(<ReviewsPanel />)
+    expect(await screen.findByText(/aceptada/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /rechazar/i }))
+
+    await waitFor(() => expect(queueRequests).toBe(2))
+    expect(moderationRequest).toEqual({ action: 'REJECT' })
+    expect(await screen.findByText(/rechazada/i)).toBeInTheDocument()
+
+    panel.unmount()
+    window.history.replaceState({}, '', '/juegos/watergate')
+    render(<App />)
+
+    expect(await screen.findByText('0 reseñas · Sin calificaciones')).toBeVisible()
+    expect(screen.getByText('Todavía no hay reseñas aprobadas.')).toBeVisible()
+    expect(screen.queryByText('“Great game”')).not.toBeInTheDocument()
+  })
+
+  it('restores a rejected review to accepted and refreshes its public state', async () => {
+    currentStatus = 'REJECTED'
+    const panel = render(<ReviewsPanel />)
+    expect(await screen.findByText(/rechazada/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /aceptar/i }))
+
+    await waitFor(() => expect(queueRequests).toBe(2))
+    expect(moderationRequest).toEqual({ action: 'ACCEPT' })
+    expect(await screen.findByText(/aceptada/i)).toBeInTheDocument()
+
+    panel.unmount()
+    window.history.replaceState({}, '', '/juegos/watergate')
+    render(<App />)
+
+    expect(await screen.findByText('“Great game”')).toBeVisible()
+    expect(screen.getByText('1 reseñas · 5.0')).toBeVisible()
+  })
+
+  it('shows safe failure feedback when rejecting a review fails', async () => {
+    server.use(http.post('*/api/v1/admin/reviews/:review_id/actions', () => HttpResponse.json(
+      { detail: 'private upstream secret' },
+      { status: 502 },
+    )))
+    currentStatus = 'ACCEPTED'
+    render(<ReviewsPanel />)
+    expect(await screen.findByText(/aceptada/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /rechazar/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se pudo completar la moderación en este momento.',
+    )
+    expect(screen.queryByText('private upstream secret')).not.toBeInTheDocument()
+    expect(queueRequests).toBe(1)
   })
 })
