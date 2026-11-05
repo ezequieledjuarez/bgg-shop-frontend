@@ -152,4 +152,27 @@ describe('ReviewsPanel', () => {
     expect(await screen.findByText('“Great game”')).toBeVisible()
     expect(screen.getByText('1 reseñas · 5.0')).toBeVisible()
   })
+
+  it('distinguishes a successful acceptance with pending public cache refresh', async () => {
+    server.use(http.post('*/api/v1/admin/reviews/:review_id/actions', () => {
+      const response: ModerateReviewResponse = {
+        review_id: pendingReview.review_id,
+        status: 'ACCEPTED',
+        deleted: false,
+        publicly_visible: true,
+        cache_refresh_pending: true,
+      }
+      accepted = true
+      return HttpResponse.json(response)
+    }))
+    render(<ReviewsPanel />)
+    expect(await screen.findByText('Great game')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /aceptar/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'La acción se completó, pero la actualización de la vista pública está pendiente.',
+    )
+    await waitFor(() => expect(queueRequests).toBe(2))
+  })
 })
