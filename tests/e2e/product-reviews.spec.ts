@@ -91,3 +91,220 @@ test('submits an authenticated review through an isolated disposable stack', asy
   expect(publicDetail.status()).toBe(200)
   expect((await publicDetail.json()).approved_reviews).toEqual([])
 })
+
+test('moderator accepts, rejects, restores, and refreshes public detail', async ({ page, request }) => {
+  test.skip(process.env.C03_DISPOSABLE_REVIEW_E2E !== 'true', 'Requires the isolated review test stack')
+  const bff = 'http://127.0.0.1:5001'
+  const buyerEmail = `review-${crypto.randomUUID()}@example.test`
+  const buyerPassword = `${crypto.randomUUID()}-Test1!`
+  const reviewBody = `Synthetic moderation journey ${crypto.randomUUID()}`
+
+  const marker = await request.get(`${bff}/api/v1/games/synthetic-review-game`)
+  expect(marker.status()).toBe(200)
+  const baseline = await marker.json() as {
+    approved_reviews: Array<{ rating: number; body: string }>
+    review_summary: { approved_review_count: number; average_rating: number | null }
+  }
+
+  const registration = await request.post(`${bff}/api/v1/auth/register`, {
+    data: { email: buyerEmail, password: buyerPassword, first_name: 'Synthetic', last_name: 'Reviewer' },
+  })
+  expect(registration.status()).toBe(201)
+
+  await page.route('**/api/v1/**', async (route) => {
+    const original = new URL(route.request().url())
+    const expectedOrigin = new URL(
+      process.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1',
+    ).origin
+    if (original.origin !== expectedOrigin) {
+      await route.abort('blockedbyclient')
+      throw new Error('Unexpected API origin in isolated review test')
+    }
+    await route.fulfill({ response: await route.fetch({ url: `${bff}${original.pathname}${original.search}` }) })
+  })
+
+  await page.goto('/login')
+  await page.getByLabel('Correo electrónico').fill(buyerEmail)
+  await page.getByLabel('Contraseña').fill(buyerPassword)
+  const buyerLogin = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/v1/auth/login')
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
+  expect((await buyerLogin).status()).toBe(200)
+
+  await page.goto('/juegos/synthetic-review-game')
+  await page.getByRole('textbox', { name: 'Reseña', exact: true }).fill(reviewBody)
+  const reviewResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+    && new URL(response.url()).pathname.endsWith('/reviews'))
+  await page.getByRole('button', { name: 'Enviar reseña' }).click()
+  const createdReview = await reviewResponse
+  expect(createdReview.status()).toBe(201)
+  expect(await createdReview.json()).toMatchObject({ created: true, status: 'PENDING' })
+  await expect(page.locator('p[role="status"]').filter({
+    hasText: 'Tu reseña fue enviada y quedó pendiente de moderación.',
+  })).toHaveText('Tu reseña fue enviada y quedó pendiente de moderación.')
+
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible()
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click()
+  await page.goto('/login')
+  await page.getByLabel('Correo electrónico').fill('e2e_admin@example.com')
+  await page.getByLabel('Contraseña').fill('e2e_password')
+  const adminLogin = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/v1/auth/login')
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
+  expect((await adminLogin).status()).toBe(200)
+
+  await page.goto('/admin/reviews')
+  await expect(page.getByRole('heading', { name: 'Moderación de reseñas' })).toBeVisible()
+  const reviewCard = page.locator('article').filter({ hasText: reviewBody })
+  await expect(reviewCard.getByText(reviewBody, { exact: true })).toBeVisible()
+  const adminToken = await page.evaluate(() => {
+    const session = JSON.parse(sessionStorage.getItem('bgg-shop.session') ?? '{}') as {
+      access_token?: string
+    }
+    return session.access_token
+  })
+  expect(adminToken).toBeTruthy()
+  const queueResponse = await request.get(
+    `${bff}/api/v1/admin/reviews?page=1&page_size=100`,
+    { headers: { Authorization: `Bearer ${adminToken}` } },
+  )
+  expect(queueResponse.status()).toBe(200)
+  const queue = await queueResponse.json() as {
+    items: Array<{ review_id: number; body: string }>
+  }
+  const review = queue.items.find((item) => item.body === reviewBody)
+  expect(review).toBeTruthy()
+
+  const moderationResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+    && /\/api\/v1\/admin\/reviews\/\d+\/actions$/.test(new URL(response.url()).pathname))
+  await reviewCard.getByRole('button', { name: /aceptar/i }).click()
+  const moderation = await moderationResponse
+  expect(moderation.status()).toBe(200)
+  expect(await moderation.json()).toMatchObject({
+    status: 'ACCEPTED',
+    publicly_visible: true,
+    cache_refresh_pending: false,
+  })
+  await expect(reviewCard.getByText('Estado: Aceptada', { exact: true })).toBeVisible()
+
+  const publicDetail = await request.get(`${bff}/api/v1/games/synthetic-review-game`)
+  expect(publicDetail.status()).toBe(200)
+  const updated = await publicDetail.json() as typeof baseline
+  const initialRatingTotal = baseline.approved_reviews.reduce((total, review) => total + review.rating, 0)
+  const expectedAverage = (initialRatingTotal + 5) / (baseline.review_summary.approved_review_count + 1)
+  expect(updated.review_summary.approved_review_count).toBe(baseline.review_summary.approved_review_count + 1)
+  expect(updated.review_summary.average_rating).toBe(expectedAverage)
+  expect(updated.approved_reviews).toEqual(expect.arrayContaining([
+    expect.objectContaining({ body: reviewBody, rating: 5 }),
+  ]))
+
+  const rejectionResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+    && /\/api\/v1\/admin\/reviews\/\d+\/actions$/.test(new URL(response.url()).pathname))
+  await reviewCard.getByRole('button', { name: /rechazar/i }).click()
+  const rejection = await rejectionResponse
+  expect(rejection.status()).toBe(200)
+  expect(await rejection.json()).toMatchObject({
+    status: 'REJECTED',
+    publicly_visible: false,
+    cache_refresh_pending: false,
+  })
+  await expect(reviewCard.getByText('Estado: Rechazada', { exact: true })).toBeVisible()
+
+  const rejectedDetail = await request.get(`${bff}/api/v1/games/synthetic-review-game`)
+  expect(rejectedDetail.status()).toBe(200)
+  const rejected = await rejectedDetail.json() as typeof baseline
+  expect(rejected.review_summary.approved_review_count)
+    .toBe(baseline.review_summary.approved_review_count)
+  expect(rejected.review_summary.average_rating).toBe(baseline.review_summary.average_rating)
+  expect(rejected.approved_reviews).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ body: reviewBody }),
+  ]))
+
+  const restorationResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+    && /\/api\/v1\/admin\/reviews\/\d+\/actions$/.test(new URL(response.url()).pathname))
+  await reviewCard.getByRole('button', { name: /aceptar/i }).click()
+  const restoration = await restorationResponse
+  expect(restoration.status()).toBe(200)
+  expect(await restoration.json()).toMatchObject({
+    status: 'ACCEPTED',
+    publicly_visible: true,
+    cache_refresh_pending: false,
+  })
+  await expect(reviewCard.getByText('Estado: Aceptada', { exact: true })).toBeVisible()
+
+  const restoredDetail = await request.get(`${bff}/api/v1/games/synthetic-review-game`)
+  expect(restoredDetail.status()).toBe(200)
+  const restored = await restoredDetail.json() as typeof baseline
+  expect(restored.review_summary.approved_review_count)
+    .toBe(baseline.review_summary.approved_review_count + 1)
+  expect(restored.review_summary.average_rating).toBe(expectedAverage)
+  expect(restored.approved_reviews).toEqual(expect.arrayContaining([
+    expect.objectContaining({ body: reviewBody, rating: 5 }),
+  ]))
+
+  const deletionResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+    && /\/api\/v1\/admin\/reviews\/\d+\/actions$/.test(new URL(response.url()).pathname))
+  await reviewCard.getByRole('button', { name: /eliminar reseña/i }).click()
+  const deletion = await deletionResponse
+  expect(deletion.status()).toBe(200)
+  expect(await deletion.json()).toMatchObject({
+    review_id: review.review_id,
+    status: 'ACCEPTED',
+    deleted: true,
+    publicly_visible: false,
+    cache_refresh_pending: false,
+  })
+  await expect(reviewCard).not.toBeVisible()
+
+  const deletedDetailResponse = await request.get(`${bff}/api/v1/games/synthetic-review-game`)
+  expect(deletedDetailResponse.status()).toBe(200)
+  const deletedDetail = await deletedDetailResponse.json() as typeof baseline
+  expect(deletedDetail.review_summary.approved_review_count)
+    .toBe(baseline.review_summary.approved_review_count)
+  expect(deletedDetail.review_summary.average_rating).toBe(baseline.review_summary.average_rating)
+  expect(deletedDetail.approved_reviews).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ body: reviewBody }),
+  ]))
+
+  const deletedQueueResponse = await request.get(
+    `${bff}/api/v1/admin/reviews?status=ACCEPTED&page=1&page_size=100`,
+    { headers: { Authorization: `Bearer ${adminToken}` } },
+  )
+  expect(deletedQueueResponse.status()).toBe(200)
+  const deletedQueue = await deletedQueueResponse.json() as typeof queue
+  expect(deletedQueue.items).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ review_id: review.review_id }),
+  ]))
+
+  const repeatDelete = await request.post(
+    `${bff}/api/v1/admin/reviews/${review.review_id}/actions`,
+    {
+      data: { action: 'DELETE' },
+      headers: { Authorization: `Bearer ${adminToken}` },
+    },
+  )
+  expect(repeatDelete.status()).toBe(200)
+  expect(await repeatDelete.json()).toMatchObject({
+    review_id: review.review_id,
+    status: 'ACCEPTED',
+    deleted: true,
+    publicly_visible: false,
+    cache_refresh_pending: false,
+  })
+
+  const acceptDeleted = await request.post(
+    `${bff}/api/v1/admin/reviews/${review.review_id}/actions`,
+    {
+      data: { action: 'ACCEPT' },
+      headers: { Authorization: `Bearer ${adminToken}` },
+    },
+  )
+  expect(acceptDeleted.status()).toBe(404)
+  expect(await acceptDeleted.json()).toEqual({ error: 'Review not found.' })
+})
