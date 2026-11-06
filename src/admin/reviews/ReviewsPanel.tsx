@@ -245,6 +245,13 @@ export default function ReviewsPanel() {
                       {actionInProgress ? 'Procesando...' : 'Aceptar reseña'}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => void moderateReview(review.review_id, 'DELETE')}
+                    disabled={actionInProgress}
+                  >
+                    {actionInProgress ? 'Procesando...' : 'Eliminar reseña'}
+                  </button>
                 </article>
               </li>
             ))}

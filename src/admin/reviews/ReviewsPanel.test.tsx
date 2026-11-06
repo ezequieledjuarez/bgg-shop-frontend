@@ -254,6 +254,32 @@ describe('ReviewsPanel', () => {
     expect(screen.queryByText('Great game')).not.toBeInTheDocument()
   })
 
+  it('reports successful deletion while public cache refresh is pending and refreshes the queue', async () => {
+    server.use(http.post('*/api/v1/admin/reviews/:review_id/actions', async ({ request }) => {
+      moderationRequest = await request.json() as ModerateReviewRequest
+      currentDeleted = true
+      const response: ModerateReviewResponse = {
+        review_id: pendingReview.review_id,
+        status: currentStatus,
+        deleted: true,
+        publicly_visible: false,
+        cache_refresh_pending: true,
+      }
+      return HttpResponse.json(response)
+    }))
+    render(<ReviewsPanel />)
+    expect(await screen.findByText('Great game')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /eliminar reseña/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'La acción se completó, pero la actualización de la vista pública está pendiente.',
+    )
+    await waitFor(() => expect(queueRequests).toBe(2))
+    expect(moderationRequest).toEqual({ action: 'DELETE' })
+    expect(await screen.findByText(/no hay reseñas para moderar/i)).toBeInTheDocument()
+  })
+
   it('shows safe failure feedback when soft-deleting a review fails without refreshing the queue', async () => {
     server.use(http.post('*/api/v1/admin/reviews/:review_id/actions', () => HttpResponse.json(
       { detail: 'private upstream secret' },
