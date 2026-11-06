@@ -1,0 +1,160 @@
+.user-management-panel {
+  color: #252422;
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 28px 24px 64px;
+}
+
+.user-management-header {
+  border-bottom: 1px solid #dedbd4;
+  margin-bottom: 22px;
+  padding-bottom: 12px;
+}
+
+.user-management-header h1 {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.user-management-header p,
+.user-management-notice {
+  color: #55564f;
+}
+
+.user-management-search {
+  margin-bottom: 20px;
+  max-width: 620px;
+}
+
+.user-management-search label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.user-management-search-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.user-management-search input {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.user-management-panel input,
+.user-management-panel button {
+  font: inherit;
+}
+
+.user-management-panel input[type='search'] {
+  border: 1px solid #77786f;
+  border-radius: 4px;
+  padding: 9px 10px;
+}
+
+.user-management-panel button {
+  background: #f7f6f2;
+  border: 1px solid #77786f;
+  border-radius: 4px;
+  color: #252422;
+  cursor: pointer;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+
+.user-management-panel button:hover:not(:disabled) {
+  background: #ebe9e1;
+}
+
+.user-management-panel button:focus-visible,
+.user-management-panel input:focus-visible {
+  outline: 3px solid #245e9b;
+  outline-offset: 2px;
+}
+
+.user-management-panel button:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+
+.user-management-table-scroll {
+  overflow-x: auto;
+}
+
+.user-management-panel table {
+  border-collapse: collapse;
+  min-width: 740px;
+  width: 100%;
+}
+
+.user-management-panel th,
+.user-management-panel td {
+  border-bottom: 1px solid #dedbd4;
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.user-management-panel th {
+  background: #f7f6f2;
+}
+
+.user-management-panel td:last-child {
+  white-space: nowrap;
+}
+
+.user-management-load-more {
+  margin-top: 16px;
+}
+
+.user-management-editor {
+  border: 1px solid #dedbd4;
+  border-radius: 6px;
+  margin-top: 24px;
+  max-width: 620px;
+  padding: 16px;
+}
+
+.user-management-editor h2 {
+  font-size: 1.25rem;
+  margin-top: 0;
+}
+
+.user-management-editor fieldset {
+  border: 0;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.user-management-editor legend {
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.user-management-editor label {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+  margin: 10px 0;
+}
+
+.user-management-editor input[type='checkbox'] {
+  height: 18px;
+  width: 18px;
+}
+
+.user-management-error {
+  color: #9c2525;
+}
+
+@media (max-width: 600px) {
+  .user-management-panel {
+    padding: 20px 14px 40px;
+  }
+
+  .user-management-header h1 {
+    font-size: 1.65rem;
+  }
+}
