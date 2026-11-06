@@ -220,3 +220,70 @@ test('last active Superadmin receives 409 and preserves every saved flag', async
     expect(await list(request, token)).toEqual(initial)
   }
 })
+
+test('concurrent self-demotions preserve exactly one active Superadmin', async ({ page, request, baseURL }) => {
+  const setupToken = await login(page, baseURL!, 'superadmin')
+  const setupHeaders = { Authorization: `Bearer ${setupToken}` }
+  const initial = await list(request, setupToken)
+  const setupActor = initial.find(user => user.email === email('superadmin'))!
+  const actorA = initial.find(user => user.email === email('race-a'))!
+  const actorB = initial.find(user => user.email === email('race-b'))!
+  expect(setupActor).toMatchObject({ is_active: true, is_staff: false, is_superuser: true })
+  expect(actorA).toMatchObject({ is_active: true, is_staff: false, is_superuser: true })
+  expect(actorB).toMatchObject({ is_active: true, is_staff: false, is_superuser: true })
+
+  // Use only the isolated seed's Superadmin, and remove every other active
+  // Superadmin before relinquishing its own authority to leave exactly this pair.
+  for (const user of initial.filter(user =>
+    user.id !== setupActor.id && user.id !== actorA.id && user.id !== actorB.id
+      && user.is_active === true && user.is_superuser === true)) {
+    const response = await request.patch(`${bff}/api/v1/admin/users/${user.id}/privileges`, {
+      headers: setupHeaders, data: { privilege: 'is_superuser', enabled: false },
+    })
+    expect(response.status()).toBe(200)
+  }
+  const setupDemotion = await request.patch(`${bff}/api/v1/admin/users/${setupActor.id}/privileges`, {
+    headers: setupHeaders, data: { privilege: 'is_superuser', enabled: false },
+  })
+  expect(setupDemotion.status()).toBe(200)
+
+  const tokenA = await login(page, baseURL!, 'race-a')
+  const tokenB = await login(page, baseURL!, 'race-b')
+  const beforeRace = await list(request, tokenA)
+  expect(beforeRace
+    .filter(user => user.is_active === true && user.is_superuser === true)
+    .map(user => user.id).sort()).toEqual([actorA.id, actorB.id].sort())
+  const responses = await Promise.all([
+    request.patch(`${bff}/api/v1/admin/users/${actorA.id}/privileges`, {
+      headers: { Authorization: `Bearer ${tokenA}` },
+      data: { privilege: 'is_superuser', enabled: false },
+    }),
+    request.patch(`${bff}/api/v1/admin/users/${actorB.id}/privileges`, {
+      headers: { Authorization: `Bearer ${tokenB}` },
+      data: { privilege: 'is_superuser', enabled: false },
+    }),
+  ])
+  expect(responses.map(response => response.status()).sort()).toEqual([200, 409])
+  const succeeded = responses[0].status() === 200 ? actorA : actorB
+  const rejected = responses[0].status() === 409 ? actorA : actorB
+  const denied = responses.find(response => response.status() === 409)!
+  expect(denied.headers()['cache-control']).toBe('no-store')
+  expect(await denied.json()).toEqual({
+    errors: [{ code: 'LAST_ACTIVE_SUPERUSER', message: 'At least one active Superadmin must remain.' }],
+  })
+  const successfulResponse = responses.find(response => response.status() === 200)!
+  const saved = await successfulResponse.json() as Record<string, unknown>
+  safeUser(saved)
+  expect(saved).toMatchObject({ id: succeeded.id, is_staff: false, is_superuser: false })
+
+  const rejectedToken = rejected.id === actorA.id ? tokenA : tokenB
+  const after = await list(request, rejectedToken)
+  expect(after.find(user => user.id === succeeded.id)).toMatchObject({
+    is_active: true, is_staff: false, is_superuser: false,
+  })
+  expect(after.find(user => user.id === rejected.id)).toMatchObject({
+    is_active: true, is_staff: false, is_superuser: true,
+  })
+  const activeSuperusers = after.filter(user => user.is_active === true && user.is_superuser === true)
+  expect(activeSuperusers.map(user => user.id)).toEqual([rejected.id])
+})
