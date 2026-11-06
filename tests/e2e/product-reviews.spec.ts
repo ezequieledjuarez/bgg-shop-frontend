@@ -113,7 +113,10 @@ test('moderator accepts, rejects, restores, and refreshes public detail', async 
 
   await page.route('**/api/v1/**', async (route) => {
     const original = new URL(route.request().url())
-    if (original.origin !== 'http://localhost:5000') {
+    const expectedOrigin = new URL(
+      process.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1',
+    ).origin
+    if (original.origin !== expectedOrigin) {
       await route.abort('blockedbyclient')
       throw new Error('Unexpected API origin in isolated review test')
     }
@@ -156,6 +159,24 @@ test('moderator accepts, rejects, restores, and refreshes public detail', async 
   await expect(page.getByRole('heading', { name: 'Moderación de reseñas' })).toBeVisible()
   const reviewCard = page.locator('article').filter({ hasText: reviewBody })
   await expect(reviewCard.getByText(reviewBody, { exact: true })).toBeVisible()
+  const adminToken = await page.evaluate(() => {
+    const session = JSON.parse(sessionStorage.getItem('bgg-shop.session') ?? '{}') as {
+      access_token?: string
+    }
+    return session.access_token
+  })
+  expect(adminToken).toBeTruthy()
+  const queueResponse = await request.get(
+    `${bff}/api/v1/admin/reviews?page=1&page_size=100`,
+    { headers: { Authorization: `Bearer ${adminToken}` } },
+  )
+  expect(queueResponse.status()).toBe(200)
+  const queue = await queueResponse.json() as {
+    items: Array<{ review_id: number; body: string }>
+  }
+  const review = queue.items.find((item) => item.body === reviewBody)
+  expect(review).toBeTruthy()
+
   const moderationResponse = page.waitForResponse((response) =>
     response.request().method() === 'POST'
     && /\/api\/v1\/admin\/reviews\/\d+\/actions$/.test(new URL(response.url()).pathname))
@@ -225,4 +246,65 @@ test('moderator accepts, rejects, restores, and refreshes public detail', async 
   expect(restored.approved_reviews).toEqual(expect.arrayContaining([
     expect.objectContaining({ body: reviewBody, rating: 5 }),
   ]))
+
+  const deletionResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+    && /\/api\/v1\/admin\/reviews\/\d+\/actions$/.test(new URL(response.url()).pathname))
+  await reviewCard.getByRole('button', { name: /eliminar reseña/i }).click()
+  const deletion = await deletionResponse
+  expect(deletion.status()).toBe(200)
+  expect(await deletion.json()).toMatchObject({
+    review_id: review.review_id,
+    status: 'ACCEPTED',
+    deleted: true,
+    publicly_visible: false,
+    cache_refresh_pending: false,
+  })
+  await expect(reviewCard).not.toBeVisible()
+
+  const deletedDetailResponse = await request.get(`${bff}/api/v1/games/synthetic-review-game`)
+  expect(deletedDetailResponse.status()).toBe(200)
+  const deletedDetail = await deletedDetailResponse.json() as typeof baseline
+  expect(deletedDetail.review_summary.approved_review_count)
+    .toBe(baseline.review_summary.approved_review_count)
+  expect(deletedDetail.review_summary.average_rating).toBe(baseline.review_summary.average_rating)
+  expect(deletedDetail.approved_reviews).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ body: reviewBody }),
+  ]))
+
+  const deletedQueueResponse = await request.get(
+    `${bff}/api/v1/admin/reviews?status=ACCEPTED&page=1&page_size=100`,
+    { headers: { Authorization: `Bearer ${adminToken}` } },
+  )
+  expect(deletedQueueResponse.status()).toBe(200)
+  const deletedQueue = await deletedQueueResponse.json() as typeof queue
+  expect(deletedQueue.items).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ review_id: review.review_id }),
+  ]))
+
+  const repeatDelete = await request.post(
+    `${bff}/api/v1/admin/reviews/${review.review_id}/actions`,
+    {
+      data: { action: 'DELETE' },
+      headers: { Authorization: `Bearer ${adminToken}` },
+    },
+  )
+  expect(repeatDelete.status()).toBe(200)
+  expect(await repeatDelete.json()).toMatchObject({
+    review_id: review.review_id,
+    status: 'ACCEPTED',
+    deleted: true,
+    publicly_visible: false,
+    cache_refresh_pending: false,
+  })
+
+  const acceptDeleted = await request.post(
+    `${bff}/api/v1/admin/reviews/${review.review_id}/actions`,
+    {
+      data: { action: 'ACCEPT' },
+      headers: { Authorization: `Bearer ${adminToken}` },
+    },
+  )
+  expect(acceptDeleted.status()).toBe(404)
+  expect(await acceptDeleted.json()).toEqual({ error: 'Review not found.' })
 })
