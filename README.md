@@ -1,24 +1,29 @@
-# React + TypeScript + Vite
+# BGG Shop Frontend
 
 ## Integración del catálogo
 
-Este frontend es una aplicación client-only. `src/App.tsx` renderiza la Home
-y consume `GET /api/v1/products` del BFF para la búsqueda del CU-C02. No
-expone endpoints HTTP propios.
+Aplicación React/TypeScript con Vite. El navegador consume la API REST del BFF
+Flask y no llama directamente a GraphQL del Core. No expone endpoints HTTP
+propios.
 
-El flujo previsto es:
+El flujo implementado es:
 
 ```text
 Frontend React/Vite ── REST/JSON ──> BFF Flask ──> Core GraphQL
 ```
 
-La configuración de Compose declara
-`VITE_API_BASE_URL=http://localhost:5000/api/v1` y la Home la consume. Los
+El contrato REST canónico está en
+[`../bgg-shop-bff/specs/openapi.yaml`](../bgg-shop-bff/specs/openapi.yaml); el
+contrato GraphQL del Core está en
+[`../bgg-shop-core/specs/schema.graphql`](../bgg-shop-core/specs/schema.graphql).
+Los tipos de `src/types/generated/bff-api.d.ts` se generan desde OpenAPI y no
+demuestran que todas las operaciones estén implementadas. El Compose define
+`VITE_API_BASE_URL=http://localhost:5000/api/v1`. Los
 filtros se envían en `snake_case` (`search`, `year_published`, `min_players`,
 `max_players`, `category_id`, `price_min`, `price_max`). La búsqueda por nombre
 o editorial se confirma con Enter o el botón `Buscar`; no se solicita al BFF
-durante la escritura. El servidor local se publica en
-`http://localhost:3000` cuando se inicia mediante `podman-compose.yaml`.
+durante la escritura. Compose publica el servidor en
+`http://localhost:3000`.
 
 ## Servicios expuestos
 
@@ -96,33 +101,35 @@ mantienen copias manuales de esos contratos.
 El alcance, los contratos y las limitaciones verificadas están documentados en
 [`../docs/CU-C02-FILTERING-CHANGES.md`](../docs/CU-C02-FILTERING-CHANGES.md).
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+## Chatbot CU-C07 (en progreso)
 
-Currently, two official plugins are available:
+El Frontend no incluye interfaz ni flujo de chatbot. El archivo generado
+`src/types/generated/bff-api.d.ts` incluye tipos de operaciones descritas en
+OpenAPI; eso no implica que haya integración funcional. La especificación
+aprobada requiere una futura recuperación con ChromaDB; no hay evidencia de
+que ChromaDB, retrieval o un modelo estén disponibles en ejecución. La FAQ
+aprobada tampoco está conectada al cliente.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Estado y requisito: [`../specs/013-add-chatbot/spec.md`](../specs/013-add-chatbot/spec.md),
+[`../specs/013-add-chatbot/plan.md`](../specs/013-add-chatbot/plan.md) y
+[`../odd/tasks/013-add-chatbot.md`](../odd/tasks/013-add-chatbot.md).
+El OpenAPI del BFF mantiene las rutas del chatbot como planificadas. No hay
+pruebas de interfaz o end-to-end del chatbot.
 
-## React Compiler
+## Desarrollo local
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Prerequisito: Node.js 20 (la imagen del Frontend usa `node:20-alpine`). Para
+iniciar el stack integrado con Podman, sigue las instrucciones de la
+[guía raíz](../README.MD). Para ejecutar Vite directamente, inicia primero el
+BFF y el Core, luego ejecuta desde la raíz:
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+cd bgg-shop-frontend
+npm ci
+VITE_API_BASE_URL=http://localhost:5000/api/v1 npm run dev -- --host 0.0.0.0 --port 3000
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Los scripts definidos en `package.json` incluyen `npm run build`,
+`npm run lint`, `npm test` y `npm run generate:types`. La generación usa el
+contrato OpenAPI del BFF; no edites manualmente
+`src/types/generated/bff-api.d.ts`.
