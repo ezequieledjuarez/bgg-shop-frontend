@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the current authenticated user's administrative flags
+         * @description Returns only the current active user's staff and superuser flags from Core Query.me. The projection is a navigation hint, not authorization. Requires bearer authentication; operation-key-only access is rejected. Every response is non-cacheable.
+         */
+        get: operations["getCurrentUserCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -132,7 +152,7 @@ export interface paths {
         put?: never;
         /**
          * Create a buyer chat conversation
-         * @description Creates a conversation for the authenticated buyer or for a new anonymous browser scope. The BFF issues an opaque HttpOnly chat_session cookie for an anonymous scope when one is not already present.         The request never accepts an owner identifier or an internal Core assertion. For an anonymous scope, the BFF derives a fresh short-lived HMAC-SHA256 assertion from the chat_session cookie for each internal Core call and sends it only in X-Chat-Assertion; the browser never supplies or receives that assertion. Core validates the assertion and derives ownership only from its validated subject. When a bearer token is supplied, the new conversation belongs to that authenticated user and is not merged with or switched to an anonymous scope.
+         * @description Creates a conversation for the authenticated buyer or for a new anonymous browser scope. The BFF issues an opaque HttpOnly chat_session cookie for an anonymous scope when one is not already present. This cookie lasts only for the browser session and has no Max-Age or Expires attribute. The request never accepts an owner identifier or an internal Core assertion. For an anonymous scope, the BFF derives a fresh short-lived HMAC-SHA256 assertion from the chat_session cookie for each internal Core call and sends it only in X-Chat-Assertion; the browser never supplies or receives that assertion. Core validates the assertion and derives ownership only from its validated subject. When a bearer token is supplied, the new conversation belongs to that authenticated user and is not merged with or switched to an anonymous scope.
          */
         post: operations["createChatConversation"];
         delete?: never;
@@ -153,14 +173,14 @@ export interface paths {
         };
         /**
          * Read an owned chat conversation
-         * @description Returns only the caller's conversation. The BFF resolves ownership from the current authenticated buyer or the same valid anonymous browser session; it never trusts an owner ID in the request. Missing, expired, and cross-scope conversations all return the same not-found response. When a bearer token is supplied it is authoritative; the anonymous cookie is used only when no bearer token is present. For anonymous Core calls, the BFF creates a fresh assertion for each call and sends it only in the internal X-Chat-Assertion header. No assertion or owner identifier is accepted from or returned to the browser. No conversation messages or metadata are cached.
+         * @description Returns only the caller's conversation. The BFF resolves ownership from the current authenticated buyer or the same valid anonymous browser session; it never trusts an owner ID in the request. Missing, expired, and cross-scope conversations all return the same not-found response. When a bearer token is supplied it is authoritative; the anonymous cookie is used only when no bearer token is present. For anonymous Core calls, the BFF creates a fresh assertion for each call and sends it only in the internal X-Chat-Assertion header. No assertion or owner identifier is accepted from or returned to the browser. The anonymous chat_session cookie is non-persistent and lasts only for the browser session. No conversation messages or metadata are cached.
          */
         get: operations["getChatConversation"];
         put?: never;
         post?: never;
         /**
          * Delete an owned chat conversation
-         * @description Deletes only the caller's Core-owned PostgreSQL conversation and its messages. This operation never deletes, changes, or re-ingests ChromaDB knowledge. Missing, expired, and cross-scope conversations all return the same not-found response. A bearer token is authoritative when supplied; the anonymous cookie is used only without a bearer token. The BFF uses a fresh internal X-Chat-Assertion for each anonymous Core call; the browser does not supply or receive this assertion.
+         * @description Deletes only the caller's Core-owned PostgreSQL conversation and its messages. This operation never deletes, changes, or re-ingests ChromaDB knowledge. Missing, expired, and cross-scope conversations all return the same not-found response. A bearer token is authoritative when supplied; the anonymous cookie is used only without a bearer token. The BFF uses a fresh internal X-Chat-Assertion for each anonymous Core call; the browser does not supply or receive this assertion. The anonymous chat_session cookie is non-persistent and lasts only for the browser session.
          */
         delete: operations["deleteChatConversation"];
         options?: never;
@@ -182,7 +202,7 @@ export interface paths {
         put?: never;
         /**
          * Submit a message and receive a grounded chat reply
-         * @description Accepts at most 2,000 characters and applies a shared limit of 10 requests per minute per authenticated user or anonymous browser session across chatbot endpoints. The BFF applies its shop-scope guard before any retrieval, model, catalog, or Core conversation call. Out-of-scope, personal, account, and order content is not forwarded, persisted, or echoed. Only approved FAQ material and the existing live catalog read may be used. The model receives at most the 10 previous conversation turns. Dynamic catalog results are never written to ChromaDB. The response omits the submitted text and contains only approved-source metadata and facts returned by Core. Anonymous ownership is derived by Core from a validated BFF assertion. A bearer token is authoritative when supplied; the anonymous cookie is used only when no bearer token is present. For anonymous Core calls, the BFF sends a fresh assertion only through internal X-Chat-Assertion; it is not a browser-supplied request field.
+         * @description Accepts at most 2,000 characters and applies a shared limit of 10 requests per minute per authenticated user or anonymous browser session across chatbot endpoints. The BFF applies its shop-scope guard before any retrieval, model, catalog, or Core conversation call. Out-of-scope, personal, account, and order content is not forwarded, persisted, or echoed. Only approved FAQ material and the existing live catalog read may be used. The model receives at most the 10 previous conversation turns. Dynamic catalog results are never written to ChromaDB. The response omits the submitted text and contains only approved-source metadata and facts returned by Core. Anonymous ownership is derived by Core from a validated BFF assertion. A bearer token is authoritative when supplied; the anonymous cookie is used only when no bearer token is present. For anonymous Core calls, the BFF sends a fresh assertion only through internal X-Chat-Assertion; it is not a browser-supplied request field. The anonymous chat_session cookie is non-persistent and lasts only for the browser session. A message mixing shop questions with personal, account, order, or transactional content is neither processed nor persisted; the buyer is asked to resubmit only the shop-related part. An unclear topic receives a shop-related clarification request without persistence or Core, retrieval, model, or tool calls. If it remains unclear or is out of scope, the BFF politely refuses without persisting or echoing the submitted text. English and Spanish questions are supported, and user-facing assistant text uses the language of the submitted question for FAQ answers, catalog recommendations, refusals, clarifications, and fallbacks. This does not relax shop-scope, privacy, ownership, grounding, or no-fabrication safeguards.
          */
         post: operations["sendChatMessage"];
         delete?: never;
@@ -1169,6 +1189,10 @@ export interface components {
                 message: string;
             }[];
         };
+        CurrentUserCapabilities: {
+            is_staff: boolean;
+            is_superuser: boolean;
+        };
         AuthUser: {
             id: string;
             /** Format: email */
@@ -1672,7 +1696,7 @@ export interface components {
         };
         ChatReplyResponse: {
             conversation_id: string;
-            /** @description Grounded answer, refusal, clarification, or uncertainty fallback. It must not repeat protected details from the submitted message. */
+            /** @description Grounded answer, refusal, clarification, or uncertainty fallback. English and Spanish are supported, and assistant text matches the language of the submitted question. It must not repeat protected details from the submitted message. */
             answer: string;
             /** @description Approved knowledge sources used for this answer, when available. */
             sources: components["schemas"]["ChatSource"][];
@@ -2075,6 +2099,76 @@ export interface operations {
             };
         };
     };
+    getCurrentUserCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current user's role flags. */
+            200: {
+                headers: {
+                    /** @description Role snapshots must not be cached. */
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "is_staff": true,
+                     *       "is_superuser": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CurrentUserCapabilities"];
+                };
+            };
+            /** @description Missing, invalid, or inactive user identity. */
+            401: {
+                headers: {
+                    /** @description Authentication results must not be cached. */
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "errors": [
+                     *         {
+                     *           "code": "UNAUTHENTICATED",
+                     *           "message": "Authentication is required."
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AuthErrorResponse"];
+                };
+            };
+            /** @description Core identity could not be resolved; upstream details are omitted. */
+            502: {
+                headers: {
+                    /** @description Identity resolution failures must not be cached. */
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "errors": [
+                     *         {
+                     *           "code": "UPSTREAM_FAILURE",
+                     *           "message": "The current user could not be verified."
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AuthErrorResponse"];
+                };
+            };
+        };
+    };
     registerAccount: {
         parameters: {
             query?: never;
@@ -2301,7 +2395,7 @@ export interface operations {
             201: {
                 headers: {
                     "Cache-Control": components["headers"]["ChatNoStore"];
-                    /** @description Present for a newly created anonymous browser scope only. The opaque chat_session cookie is HttpOnly, SameSite=Lax, and Secure outside local development. It is not a user identifier. */
+                    /** @description Present for a newly created anonymous browser scope only. The opaque chat_session cookie is HttpOnly, SameSite=Lax, and Secure outside local development. It is a non-persistent browser-session cookie with no Max-Age or Expires attribute and is not a user identifier. */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };

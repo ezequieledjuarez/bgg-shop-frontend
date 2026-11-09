@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import apiFetch from './apiClient'
-import { operationKeyFor } from '../auth/session'
+import { ADMIN_AUTHORIZATION_DENIED_EVENT, operationKeyFor } from '../auth/session'
 
 describe('apiFetch', () => {
 beforeEach(() => {
@@ -63,6 +63,36 @@ return Promise.resolve(new Response(null, { status: 204 }))
 
 const resp = await apiFetch('/test', { method: 'GET' })
 expect(resp).toBeDefined()
+})
+
+it('uses bearer authentication, never an operation key, for the current-user endpoint', async () => {
+vi.stubEnv('VITE_USE_OPKEY', 'true')
+sessionStorage.setItem('bgg-shop.session', JSON.stringify({
+	access_token: 'synthetic-jwt', op_key: 'synthetic-op-key',
+	op_key_expires_at: '2099-01-01T00:00:00Z', ops: ['GET:/api/v1/admin/*'],
+}))
+const request = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+vi.stubGlobal('fetch', request)
+
+await apiFetch('http://localhost:5000/api/v1/auth/me', { cache: 'no-store' })
+
+const headers = request.mock.calls[0][1].headers as Headers
+expect(headers.get('Authorization')).toMatch(/^Bearer /)
+expect(headers.get('X-Op-Key')).toBeNull()
+expect(request.mock.calls[0][1].cache).toBe('no-store')
+})
+
+it('invalidates the admin role snapshot after an observed admin authorization denial', async () => {
+sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'synthetic-jwt' }))
+const request = vi.fn().mockResolvedValue(new Response(null, { status: 403 }))
+vi.stubGlobal('fetch', request)
+const denied = vi.fn()
+window.addEventListener(ADMIN_AUTHORIZATION_DENIED_EVENT, denied)
+
+await apiFetch('http://localhost:5000/api/v1/admin/products')
+
+window.removeEventListener(ADMIN_AUTHORIZATION_DENIED_EVENT, denied)
+expect(denied).toHaveBeenCalledTimes(1)
 })
 
 it('dispatches bgg:request-token when token missing and eventually throws', async () => {

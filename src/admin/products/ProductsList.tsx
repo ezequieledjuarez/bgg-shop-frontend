@@ -264,6 +264,7 @@ export default function ProductsList() {
       )}
 
       {!loading && !error && hasProducts && pageData && (
+        <div className="admin-table-scroll" role="region" aria-label="Tabla de productos, desplazamiento horizontal disponible" tabIndex={0}>
         <table className="admin-table" aria-label="Productos">
           <thead>
             <tr>
@@ -288,6 +289,7 @@ export default function ProductsList() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {pageData && pageData.total_pages > 0 && (

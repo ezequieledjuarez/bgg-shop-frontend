@@ -54,6 +54,7 @@ const emptyCart: components['schemas']['CartResponse'] = { lines: [], total: 0, 
 let wishlist: Product[] = []
 
 const server = setupServer(
+  http.get('*/api/v1/auth/me', () => HttpResponse.json({ is_staff: false, is_superuser: false })),
   http.get('*/api/v1/products', () => HttpResponse.json(products)),
   http.get('*/api/v1/games/watergate', () => HttpResponse.json(detail)),
   http.get('*/api/v1/wishlist', () => HttpResponse.json({ items: wishlist })),

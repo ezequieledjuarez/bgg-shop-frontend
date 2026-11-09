@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -55,7 +55,7 @@ afterAll(() => server.close())
 
 describe('AuditPanel', () => {
   it('loads the audit route and requests the contract default page size', async () => {
-    const { unmount } = render(<AdminRouter path="/admin/audit" />)
+    const { unmount } = render(<AdminRouter path="/admin/audit" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
 
     expect(await screen.findByRole('heading', { name: 'Historial de auditoría' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Registros de auditoría' })).toBeInTheDocument()
@@ -65,9 +65,10 @@ describe('AuditPanel', () => {
     expect(requests[0].searchParams.has('cursor')).toBe(false)
     unmount()
 
-    render(<AdminRouter path="/admin" />)
-    expect(screen.getByRole('navigation', { name: 'Administración' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Historial de auditoría' })).toHaveAttribute('href', '/admin/audit')
+    render(<AdminRouter path="/admin" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
+    expect(screen.getByRole('navigation', { name: 'Navegación de administración' })).toBeInTheDocument()
+    expect(within(screen.getByRole('navigation', { name: 'Navegación de administración' }))
+      .getByRole('link', { name: 'Historial de auditoría' })).toHaveAttribute('href', '/admin/audit')
 
     requests.length = 0
     render(<AuditPanel />)

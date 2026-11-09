@@ -266,6 +266,7 @@ export default function AuditPanel() {
       {loadState === 'success' && page && page.items.length > 0 ? (
         <>
           <p role="status">Página {pageNumber}</p>
+          <div className="admin-table-scroll" role="region" aria-label="Tabla de registros de auditoría, desplazamiento horizontal disponible" tabIndex={0}>
           <table className="admin-table" aria-label="Registros de auditoría">
             <thead>
               <tr>
@@ -300,6 +301,7 @@ export default function AuditPanel() {
               ))}
             </tbody>
           </table>
+          </div>
           <button type="button" onClick={goToNextPage} disabled={!page.next_cursor}>
             Siguiente página
           </button>

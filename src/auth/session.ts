@@ -1,5 +1,6 @@
 export const SESSION_STORAGE_KEY = 'bgg-shop.session'
 export const SESSION_CHANGE_EVENT = 'bgg-shop:session-change'
+export const ADMIN_AUTHORIZATION_DENIED_EVENT = 'bgg-shop:admin-authorization-denied'
 
 export function operationKeyFor(input: RequestInfo | URL, method: string): string | undefined {
 	if (import.meta.env.VITE_USE_OPKEY !== 'true') return undefined

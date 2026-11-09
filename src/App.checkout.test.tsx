@@ -44,6 +44,10 @@ let ordersList: PurchaseOrder[] = [approvedOrder]
 let detailOrder: PurchaseOrder = approvedOrder
 let confirmationOrder: PurchaseOrder = approvedOrder
 const server = setupServer(
+  http.get('*/api/v1/auth/me', () => HttpResponse.json(
+    { is_staff: false, is_superuser: false } satisfies components['schemas']['CurrentUserCapabilities'],
+    { headers: { 'Cache-Control': 'no-store' } },
+  )),
   http.get('*/api/v1/cart', () => HttpResponse.json(cart)),
   http.get('*/api/v1/credit', () => HttpResponse.json({ balance: '0.00', currency: 'ARS' } satisfies components['schemas']['CreditBalance'])),
   http.post('*/api/v1/checkout', async ({ request }) => {

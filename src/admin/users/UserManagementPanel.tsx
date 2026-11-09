@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import apiFetch from '../../lib/apiClient'
+import { SESSION_CHANGE_EVENT } from '../../auth/session'
 import type { components, operations } from '../../types/generated/bff-api'
 import './UserManagementPanel.css'
 
@@ -227,6 +228,7 @@ function UserManagementPanel() {
       if (controller.signal.aborted) return
       setDraftPrivileges(privilegesOf(savedUser))
       setSaveMessage('Cambios guardados.')
+      window.dispatchEvent(new Event(SESSION_CHANGE_EVENT))
     } catch {
       if (controller.signal.aborted) return
       setDraftPrivileges(privilegesOf(savedUser))
@@ -274,7 +276,7 @@ function UserManagementPanel() {
             </div>
           </form>
 
-          <div className="user-management-table-scroll">
+          <div className="user-management-table-scroll" role="region" aria-label="Tabla de usuarios, desplazamiento horizontal disponible" tabIndex={0}>
             <table aria-label="Usuarios">
               <thead>
                 <tr>

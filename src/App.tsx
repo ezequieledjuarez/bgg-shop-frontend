@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { LoginScreen, RegisterScreen } from './auth/AuthScreens';
-import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
+import { ADMIN_AUTHORIZATION_DENIED_EVENT, SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
+import { fetchAdminCapabilities, type AdminCapabilities } from './auth/adminCapabilities'
 import './App.css';
 import type { components, operations } from './types/generated/bff-api'
 import { cartErrorMessage, cartMessages, reviewErrorMessage } from './ui/messages'
@@ -507,7 +508,7 @@ function CartScreen({ onBack, onNavigate }: { onBack: () => void; onNavigate: (p
   )
 }
 
-function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
+function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string) => void; canAccessAdmin: boolean }) {
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => Boolean(sessionStorage.getItem(SESSION_STORAGE_KEY)),
   )
@@ -712,6 +713,7 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
           <a href="/carrito" onClick={(event) => { event.preventDefault(); onNavigate("/carrito") }}>{cartMessages.openCart}</a>
           {isAuthenticated && <a href="/wishlist" onClick={(event) => { event.preventDefault(); onNavigate('/wishlist') }}>Lista de deseos</a>}
           {isAuthenticated && <a href="/mis-compras" onClick={(event) => { event.preventDefault(); onNavigate("/mis-compras") }}>Mis Compras</a>}
+          {canAccessAdmin && <a href="/admin" onClick={(event) => { event.preventDefault(); onNavigate('/admin') }}>Administración</a>}
         </nav>
         <div className="account-actions">
           {isAuthenticated ? (
@@ -847,6 +849,18 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
 
 function App() {
   const [pathname, setPathname] = useState(window.location.pathname)
+  const [capabilityState, setCapabilityState] = useState<
+    { status: 'idle' } |
+    { status: 'loading' } |
+    { status: 'ready'; capabilities: AdminCapabilities } |
+    { status: 'error' }
+  >({ status: 'idle' })
+  const [sessionRevision, setSessionRevision] = useState(0)
+  const [capabilityRetry, setCapabilityRetry] = useState(0)
+  const capabilityRequestId = useRef(0)
+  const accessToken = readAccessToken()
+  const adminRouteKey = pathname === '/admin' || pathname.startsWith('/admin/') ? pathname : null
+  const capabilityRouteKey = adminRouteKey ?? (pathname === '/' ? 'storefront' : null)
 
   useEffect(() => {
     const handlePopState = () => {
@@ -865,6 +879,47 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
+  useEffect(() => {
+    const invalidate = () => {
+      setCapabilityState({ status: 'idle' })
+      setSessionRevision((revision) => revision + 1)
+    }
+    window.addEventListener(SESSION_CHANGE_EVENT, invalidate)
+    window.addEventListener(ADMIN_AUTHORIZATION_DENIED_EVENT, invalidate)
+    return () => {
+      window.removeEventListener(SESSION_CHANGE_EVENT, invalidate)
+      window.removeEventListener(ADMIN_AUTHORIZATION_DENIED_EVENT, invalidate)
+    }
+  }, [])
+
+  useEffect(() => {
+    const requestId = ++capabilityRequestId.current
+    if (!accessToken || !capabilityRouteKey) {
+      setCapabilityState({ status: 'idle' })
+      return () => {
+        if (capabilityRequestId.current === requestId) capabilityRequestId.current += 1
+      }
+    }
+
+    const controller = new AbortController()
+    setCapabilityState({ status: 'loading' })
+    void fetchAdminCapabilities(controller.signal)
+      .then((capabilities) => {
+        if (controller.signal.aborted || capabilityRequestId.current !== requestId
+          || readAccessToken() !== accessToken) return
+        setCapabilityState({ status: 'ready', capabilities })
+      })
+      .catch(() => {
+        if (controller.signal.aborted || capabilityRequestId.current !== requestId
+          || readAccessToken() !== accessToken) return
+        setCapabilityState({ status: 'error' })
+      })
+    return () => {
+      controller.abort()
+      if (capabilityRequestId.current === requestId) capabilityRequestId.current += 1
+    }
+  }, [accessToken, sessionRevision, capabilityRouteKey, capabilityRetry])
+
   const navigate = useCallback((path: string) => {
     window.history.pushState({}, '', path)
     setPathname(path)
@@ -877,7 +932,7 @@ function App() {
   const loginAndReturnToWishlist = useCallback(() => navigateToLoginAndReturn('/wishlist'), [navigateToLoginAndReturn])
 
   useEffect(() => {
-    if ((pathname === '/wishlist' || pathname.startsWith('/admin')) && window.location.pathname === pathname && !readAccessToken()) {
+    if ((pathname === '/wishlist' || pathname === '/admin' || pathname.startsWith('/admin/')) && window.location.pathname === pathname && !readAccessToken()) {
       sessionStorage.setItem(pendingReturnKey, pathname)
       window.history.pushState({}, '', '/login')
       window.dispatchEvent(new PopStateEvent('popstate'))
@@ -886,7 +941,31 @@ function App() {
 
   if (pathname === '/login') return <LoginScreen onBack={() => navigate('/')} />
   if (pathname === '/register') return <RegisterScreen onBack={() => navigate('/')} />
-  if (pathname.startsWith('/admin')) return readAccessToken() ? <AdminRouter path={pathname} /> : <LoginScreen onBack={() => navigate('/')} />
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    if (!accessToken) return <LoginScreen onBack={() => navigate('/')} />
+    if (capabilityState.status === 'idle' || capabilityState.status === 'loading') {
+      return <main className="admin-access-state"><p role="status">Verificando permisos de administración...</p></main>
+    }
+    if (capabilityState.status === 'error') {
+      return (
+        <main className="admin-access-state">
+          <p role="alert">No pudimos verificar tus permisos para administración. Revisá tu conexión e intentá nuevamente.</p>
+          <button type="button" onClick={() => setCapabilityRetry((retry) => retry + 1)}>Reintentar</button>
+        </main>
+      )
+    }
+    const { capabilities } = capabilityState
+    if (!capabilities.is_staff && !capabilities.is_superuser) {
+      return (
+        <main className="admin-access-state">
+          <h1>Acceso restringido</h1>
+          <p>Tu cuenta no tiene acceso a las herramientas de administración.</p>
+          <button type="button" onClick={() => navigate('/')}>Volver a la tienda</button>
+        </main>
+      )
+    }
+    return <AdminRouter path={pathname} capabilities={capabilities} onNavigate={navigate} />
+  }
   if (pathname === '/carrito') return <CartScreen onBack={() => navigate('/')} onNavigate={navigate} />
   if (pathname === '/wishlist') return readAccessToken()
     ? <WishlistScreen onBack={() => navigate('/')} onLogin={loginAndReturnToWishlist} />
@@ -902,7 +981,11 @@ function App() {
       onLogin={() => navigateToLoginAndReturn(`${window.location.pathname}${window.location.search}`)}
     />
   }
-  return <CatalogApp onNavigate={navigate} />
+  return <CatalogApp
+    onNavigate={navigate}
+    canAccessAdmin={capabilityState.status === 'ready'
+      && (capabilityState.capabilities.is_staff || capabilityState.capabilities.is_superuser)}
+  />
 }
 
 export default App

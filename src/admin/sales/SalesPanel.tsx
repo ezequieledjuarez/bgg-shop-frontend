@@ -328,7 +328,7 @@ export default function SalesPanel() {
           <section className="sales-section" aria-labelledby="sales-top-products-heading">
             <h2 id="sales-top-products-heading">Productos más vendidos</h2>
             {metrics.top_products.length > 0 ? (
-              <div className="sales-table-wrap">
+              <div className="sales-table-wrap" role="region" aria-label="Tabla de productos más vendidos, desplazamiento horizontal disponible" tabIndex={0}>
                 <table className="sales-table" aria-label="Productos más vendidos">
                   <thead>
                     <tr>

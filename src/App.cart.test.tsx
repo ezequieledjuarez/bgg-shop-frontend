@@ -35,6 +35,10 @@ const productPage: ProductPage = {
 let cart: Cart = { lines: [], total: 0, warnings: [] }
 
 const server = setupServer(
+  http.get("*/api/v1/auth/me", () => HttpResponse.json(
+    { is_staff: false, is_superuser: false } satisfies components["schemas"]["CurrentUserCapabilities"],
+    { headers: { "Cache-Control": "no-store" } },
+  )),
   http.get("*/api/v1/products", () => HttpResponse.json(productPage)),
   http.get("*/api/v1/product-categories", () => HttpResponse.json([] satisfies ProductCategories)),
   http.get("*/api/v1/cart", () => HttpResponse.json(cart)),
