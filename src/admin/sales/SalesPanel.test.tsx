@@ -49,7 +49,7 @@ beforeEach(() => {
   metricsPayload = completedMetrics
   categoriesPayload = ['Estrategia', 'Cooperativo']
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
-  window.history.replaceState({}, '', '/admin/sales')
+  window.history.replaceState({}, '', '/admin/ventas')
 })
 afterEach(() => {
   server.resetHandlers()
@@ -59,14 +59,14 @@ afterAll(() => server.close())
 
 describe('SalesPanel', () => {
   it('routes /admin/sales and exposes the sales navigation link', async () => {
-    const { unmount } = render(<AdminRouter path="/admin/sales" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
+    const { unmount } = render(<AdminRouter path="/admin/ventas" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
 
     expect(await screen.findByRole('heading', { name: 'Métricas de ventas' })).toBeInTheDocument()
     unmount()
 
     render(<AdminRouter path="/admin" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
     expect(within(screen.getByRole('navigation', { name: 'Navegación de administración' }))
-      .getByRole('link', { name: 'Ventas' })).toHaveAttribute('href', '/admin/sales')
+      .getByRole('link', { name: 'Ventas' })).toHaveAttribute('href', '/admin/ventas')
   })
 
   it('shows loading until the metrics request completes', async () => {

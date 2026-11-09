@@ -49,7 +49,7 @@ test('a superuser without staff still receives the complete operational navigati
   await page.goto('/admin')
 
   const navigation = page.getByRole('navigation', { name: 'Navegación de administración' })
-  await expect(navigation.getByRole('link', { name: 'Usuarios' })).toHaveAttribute('href', '/admin/users')
+  await expect(navigation.getByRole('link', { name: 'Usuarios' })).toHaveAttribute('href', '/admin/usuarios')
   for (const label of ['Productos', 'Promociones', 'Cupones', 'Gift cards', 'Historial de auditoría', 'Ventas', 'Reseñas']) {
     await expect(navigation.getByRole('link', { name: label })).toBeVisible()
   }

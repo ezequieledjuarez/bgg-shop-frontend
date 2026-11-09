@@ -48,7 +48,7 @@ test('merges a guest cart and completes a simulated purchase with wishlist clean
   await expect(page.getByLabel('Cantidad de Synthetic Cart Game', { exact: true })).toHaveValue('1')
   expect((await context.cookies()).some((cookie) => cookie.name === 'cart_id')).toBe(true)
 
-  await page.goto('/login')
+  await page.goto('/iniciar-sesion')
   await page.getByLabel('Correo electrónico').fill(email)
   await page.getByLabel('Contraseña').fill(password)
   const loginResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/auth/login')
@@ -64,11 +64,11 @@ test('merges a guest cart and completes a simulated purchase with wishlist clean
     await page.getByRole('button', { name: 'Guardar en mi lista de deseos' }).click()
     await expect(page.getByRole('button', { name: 'Guardado en mi lista de deseos' })).toBeVisible()
   }
-  await page.goto('/wishlist')
+  await page.goto('/lista-de-deseos')
   await expect(page.getByRole('listitem', { name: 'Synthetic Cart Game' })).toBeVisible()
   await expect(page.getByRole('listitem', { name: 'Synthetic Wishlist Game' })).toBeVisible()
 
-  await page.goto('/checkout')
+  await page.goto('/finalizar-compra')
   await page.getByLabel('Modalidad de entrega').selectOption('pickup')
   const checkoutResponse = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v1/checkout')
   await page.getByRole('button', { name: 'Continuar a Mercado Pago' }).click()
@@ -85,7 +85,7 @@ test('merges a guest cart and completes a simulated purchase with wishlist clean
 
   await page.goto('/carrito')
   await expect(page.getByText('Tu carrito está vacío.')).toBeVisible()
-  await page.goto('/wishlist')
+  await page.goto('/lista-de-deseos')
   await expect(page.getByRole('listitem', { name: 'Synthetic Cart Game' })).toHaveCount(0)
   await expect(page.getByRole('listitem', { name: 'Synthetic Wishlist Game' })).toBeVisible()
 

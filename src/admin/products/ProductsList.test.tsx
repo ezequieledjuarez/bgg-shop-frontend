@@ -177,8 +177,8 @@ describe('ProductsList', () => {
 
     render(<ProductsList />)
     expect(await screen.findByRole('link', { name: 'Editar' }))
-      .toHaveAttribute('href', '/admin/products/12345')
+      .toHaveAttribute('href', '/admin/productos/12345')
     expect(screen.getByRole('link', { name: 'Crear producto' }))
-      .toHaveAttribute('href', '/admin/products/new')
+      .toHaveAttribute('href', '/admin/productos/nuevo')
   })
 })

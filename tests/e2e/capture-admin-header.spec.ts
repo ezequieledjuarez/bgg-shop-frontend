@@ -77,7 +77,7 @@ test('Capture Authorization header from page-initiated admin request', async ({ 
 
   // Open app and perform UI login
   await page.goto(baseURL)
-  await page.goto(`${baseURL}/login`)
+  await page.goto(`${baseURL}/iniciar-sesion`)
   await page.fill('#email', loginEmail)
   await page.fill('#password', loginPassword)
   await Promise.all([
@@ -105,7 +105,7 @@ test('Capture Authorization header from page-initiated admin request', async ({ 
   } catch (e) { /* ignore */ }
 
   // Navigate to admin products page (this triggers page-initiated fetch)
-  await page.goto(`${baseURL}/admin/products`)
+  await page.goto(`${baseURL}/admin/productos`)
 
   // Wait for the capture buffer to contain an admin products request
   const start = Date.now()

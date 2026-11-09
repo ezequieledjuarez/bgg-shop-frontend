@@ -131,16 +131,16 @@ describe('Wishlist', () => {
     fireEvent.click(screen.getByRole('button', { name: /guardar en mi lista de deseos/i }))
 
     expect(await screen.findByRole('heading', { name: /te damos la bienvenida/i })).toBeInTheDocument()
-    expect(window.location.pathname).toBe('/login')
+    expect(window.location.pathname).toBe('/iniciar-sesion')
     expect(sessionStorage.getItem('bgg-shop.pending-return')).toBe('/juegos/watergate?bgg_id=1')
   })
 
   it('returns from login to a protected Wishlist route', async () => {
-    window.history.replaceState({}, '', '/wishlist')
+    window.history.replaceState({}, '', '/lista-de-deseos')
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: /te damos la bienvenida/i })).toBeInTheDocument()
-    expect(sessionStorage.getItem('bgg-shop.pending-return')).toBe('/wishlist')
+    expect(sessionStorage.getItem('bgg-shop.pending-return')).toBe('/lista-de-deseos')
 
     fireEvent.change(screen.getByLabelText(/correo electrónico/i), { target: { value: 'buyer@example.test' } })
     fireEvent.change(screen.getByLabelText(/contraseña/i), { target: { value: 'valid-password' } })
@@ -152,7 +152,7 @@ describe('Wishlist', () => {
 
   it('shows an empty Wishlist', async () => {
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'wishlist-token' }))
-    window.history.replaceState({}, '', '/wishlist')
+    window.history.replaceState({}, '', '/lista-de-deseos')
     render(<App />)
 
     expect(await screen.findByText(/tu lista de deseos está vacía/i)).toBeInTheDocument()
@@ -161,7 +161,7 @@ describe('Wishlist', () => {
   it('lists saved products and removes an item', async () => {
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'wishlist-token' }))
     wishlist = [watergate]
-    window.history.replaceState({}, '', '/wishlist')
+    window.history.replaceState({}, '', '/lista-de-deseos')
     render(<App />)
 
     const item = await screen.findByRole('listitem', { name: /watergate/i })
@@ -173,7 +173,7 @@ describe('Wishlist', () => {
   it('adds a Wishlist product to the cart without removing it from Wishlist', async () => {
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'wishlist-token' }))
     wishlist = [watergate]
-    window.history.replaceState({}, '', '/wishlist')
+    window.history.replaceState({}, '', '/lista-de-deseos')
     render(<App />)
 
     const item = await screen.findByRole('listitem', { name: /watergate/i })
@@ -185,7 +185,7 @@ describe('Wishlist', () => {
 
   it('shows explicit loading and API error states', async () => {
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'wishlist-token' }))
-    window.history.replaceState({}, '', '/wishlist')
+    window.history.replaceState({}, '', '/lista-de-deseos')
     server.use(http.get('*/api/v1/wishlist', () => HttpResponse.json({ errors: [{ code: 'UPSTREAM_ERROR', message: 'falló' }] }, { status: 502 })))
 
     render(<App />)
@@ -196,7 +196,7 @@ describe('Wishlist', () => {
 
   it('returns an invalid session to login while preserving the Wishlist route', async () => {
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'expired-token' }))
-    window.history.replaceState({}, '', '/wishlist')
+    window.history.replaceState({}, '', '/lista-de-deseos')
     server.use(http.get('*/api/v1/wishlist', () => HttpResponse.json({
       errors: [{ code: 'UNAUTHENTICATED', message: 'Sesión inválida.' }],
     }, { status: 401 })))
@@ -204,14 +204,14 @@ describe('Wishlist', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: /te damos la bienvenida/i })).toBeInTheDocument()
-    expect(window.location.pathname).toBe('/login')
-    expect(sessionStorage.getItem('bgg-shop.pending-return')).toBe('/wishlist')
+    expect(window.location.pathname).toBe('/iniciar-sesion')
+    expect(sessionStorage.getItem('bgg-shop.pending-return')).toBe('/lista-de-deseos')
   })
 
   it('reports stock errors when adding a Wishlist item to the cart', async () => {
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'wishlist-token' }))
     wishlist = [watergate]
-    window.history.replaceState({}, '', '/wishlist')
+    window.history.replaceState({}, '', '/lista-de-deseos')
     server.use(http.post('*/api/v1/cart/items', () => HttpResponse.json({
       warnings: [{ code: 'INSUFFICIENT_STOCK', message: 'No hay stock suficiente.' }],
       lines: [],

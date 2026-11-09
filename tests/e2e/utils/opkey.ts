@@ -43,7 +43,7 @@ export async function loginAsIsolatedAdmin(
 ): Promise<string> {
   const { email, password } = requireIsolatedOpKeyEnvironment(baseURL)
   const frontendUrl = new URL(baseURL ?? '')
-  await page.goto(new URL('/login', frontendUrl).toString())
+  await page.goto(new URL('/iniciar-sesion', frontendUrl).toString())
   await page.getByLabel('Correo electrónico', { exact: true }).fill(email)
   await page.getByLabel('Contraseña', { exact: true }).fill(password)
 
@@ -80,7 +80,7 @@ export async function createSyntheticProduct(
 ): Promise<SyntheticProduct> {
   requireIsolatedOpKeyEnvironment(baseURL)
   const imageUrl = `/media/e2e/${randomUUID()}.webp`
-  await page.goto(new URL('/admin/products/new', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/productos/nuevo', baseURL ?? '').toString())
   await page.getByLabel('Nombre', { exact: true }).fill(fields.name)
   await page.getByLabel('Precio', { exact: true }).fill(fields.price)
   await page.getByLabel('Cantidad', { exact: true }).fill(fields.quantity)
@@ -99,7 +99,7 @@ export async function createSyntheticProduct(
   const submittedProduct = createResponse.request().postDataJSON() as Record<string, unknown>
   expect(submittedProduct.image_url).toBe(imageUrl)
   expect(submittedProduct.image_file_name).toBeUndefined()
-  await page.waitForURL(new URL('/admin/products', baseURL ?? '').toString())
+  await page.waitForURL(new URL('/admin/productos', baseURL ?? '').toString())
   await page.getByRole('searchbox', { name: 'Buscar por nombre o editorial', exact: true }).fill(fields.name)
   const searchResponsePromise = page.waitForResponse((response) =>
     response.url().includes('/api/v1/admin/products?')

@@ -3,6 +3,7 @@ import apiFetch from '../../lib/apiClient'
 import createAbortController from '../../lib/abort'
 import type { components } from '../../types/generated/bff-api'
 import StockAdjustmentForm from './StockAdjustmentForm'
+import { canonicalizeUiPath, uiRoutes } from '../../routing/routes'
 
 type FieldErrors = Record<string, string>
 type ProductDetails = components['schemas']['Product']
@@ -101,13 +102,13 @@ function sameStrings(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
-export default function ProductForm() {
-  const pathname = window.location.pathname
+export default function ProductForm({ pathname: routePath }: { pathname?: string } = {}) {
+  const pathname = canonicalizeUiPath(routePath ?? window.location.pathname)
   const parts = pathname.split('/').filter(Boolean)
   let editingId: string | undefined
   let isNew = false
-  if (parts[0] === 'admin' && parts[1] === 'products') {
-    if (parts[2] === 'new') isNew = true
+  if (parts[0] === 'admin' && parts[1] === 'productos') {
+    if (parts[2] === 'nuevo') isNew = true
     else if (parts[2]) editingId = parts[2]
   }
 
@@ -329,7 +330,7 @@ export default function ProductForm() {
         return
       }
 
-      window.location.href = '/admin/products'
+      window.location.href = uiRoutes.admin.products
     } catch {
       setErrors({ __global: 'No se pudo conectar con el servicio' })
     } finally {

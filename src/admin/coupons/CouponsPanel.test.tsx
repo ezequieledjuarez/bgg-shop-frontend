@@ -27,7 +27,7 @@ beforeAll(() => server.listen())
 beforeEach(() => {
   coupons = []
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
-  window.history.replaceState({}, '', '/admin/coupons')
+  window.history.replaceState({}, '', '/admin/cupones')
 })
 afterEach(() => {
   server.resetHandlers()
@@ -60,7 +60,7 @@ describe('CouponsPanel', () => {
     render(<CouponsPanel />)
 
     expect(await screen.findByText('Todavía no hay cupones.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Crear cupón' })).toHaveAttribute('href', '/admin/coupons/new')
+    expect(screen.getByRole('link', { name: 'Crear cupón' })).toHaveAttribute('href', '/admin/cupones/nuevo')
   })
 
   it('lists coupon details and links to edit and deactivate', async () => {
@@ -70,7 +70,7 @@ describe('CouponsPanel', () => {
     expect(await screen.findByRole('table', { name: 'Cupones' })).toBeInTheDocument()
     expect(screen.getByRole('row', { name: /WinterSAVE/ })).toHaveTextContent('12.5%')
     expect(screen.getByText('Inactivo')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Editar / activar o desactivar' })).toHaveAttribute('href', '/admin/coupons/41')
+    expect(screen.getByRole('link', { name: 'Editar / activar o desactivar' })).toHaveAttribute('href', '/admin/cupones/41')
     expect(screen.queryByRole('button', { name: /eliminar|borrar/i })).not.toBeInTheDocument()
   })
 })

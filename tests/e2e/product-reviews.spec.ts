@@ -57,7 +57,7 @@ test('submits an authenticated review through an isolated disposable stack', asy
     }
     await route.fulfill({ response: await route.fetch({ url: `${bff}${original.pathname}${original.search}` }) })
   })
-  await page.goto('/login')
+  await page.goto('/iniciar-sesion')
   await page.getByLabel('Correo electrónico').fill(email)
   await page.getByLabel('Contraseña').fill(password)
   const loginResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/auth/login')
@@ -123,7 +123,7 @@ test('moderator accepts, rejects, restores, and refreshes public detail', async 
     await route.fulfill({ response: await route.fetch({ url: `${bff}${original.pathname}${original.search}` }) })
   })
 
-  await page.goto('/login')
+  await page.goto('/iniciar-sesion')
   await page.getByLabel('Correo electrónico').fill(buyerEmail)
   await page.getByLabel('Contraseña').fill(buyerPassword)
   const buyerLogin = page.waitForResponse((response) =>
@@ -147,7 +147,7 @@ test('moderator accepts, rejects, restores, and refreshes public detail', async 
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible()
   await page.getByRole('button', { name: 'Cerrar sesión' }).click()
-  await page.goto('/login')
+  await page.goto('/iniciar-sesion')
   await page.getByLabel('Correo electrónico').fill('e2e_admin@example.com')
   await page.getByLabel('Contraseña').fill('e2e_password')
   const adminLogin = page.waitForResponse((response) =>
@@ -155,7 +155,7 @@ test('moderator accepts, rejects, restores, and refreshes public detail', async 
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click()
   expect((await adminLogin).status()).toBe(200)
 
-  await page.goto('/admin/reviews')
+  await page.goto('/admin/resenas')
   await expect(page.getByRole('heading', { name: 'Moderación de reseñas' })).toBeVisible()
   const reviewCard = page.locator('article').filter({ hasText: reviewBody })
   await expect(reviewCard.getByText(reviewBody, { exact: true })).toBeVisible()

@@ -18,7 +18,7 @@ test('Admin: create a product-specific promotion and verify its price preview', 
     quantity: '4',
   })
 
-  await page.goto(new URL('/admin/promotions/new', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/promociones/nueva', baseURL ?? '').toString())
   await page.getByLabel('Nombre', { exact: true }).fill(`E2E Spec 007 promotion ${randomUUID()}`)
   await page.getByLabel('Producto', { exact: true }).selectOption(String(productId))
   await page.getByLabel('Descuento (%)', { exact: true }).fill('10')
@@ -50,7 +50,7 @@ test('Admin: create a product-specific promotion and verify its price preview', 
     response.url().endsWith('/api/v1/admin/promotions')
       && response.request().method() === 'GET',
   )
-  await page.goto(new URL('/admin/promotions', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/promociones', baseURL ?? '').toString())
   const listResponse = await listResponsePromise
   expect(listResponse.status()).toBe(200)
   const promotionRow = page.getByRole('listitem').filter({ hasText: promotionName })
@@ -63,7 +63,7 @@ test('Admin: create an inactive global promotion without selecting a product', a
   requireIsolatedOpKeyEnvironment(baseURL)
   await loginAsIsolatedAdmin(page, baseURL)
 
-  await page.goto(new URL('/admin/promotions/new', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/promociones/nueva', baseURL ?? '').toString())
   const promotionName = `E2E Spec 007 global ${randomUUID()}`
   await page.getByLabel('Nombre', { exact: true }).fill(promotionName)
   await expect(page.getByLabel('Producto', { exact: true })).toHaveValue('')
@@ -90,7 +90,7 @@ test('Admin: create an inactive global promotion without selecting a product', a
     response.url().endsWith('/api/v1/admin/promotions')
       && response.request().method() === 'GET',
   )
-  await page.goto(new URL('/admin/promotions', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/promociones', baseURL ?? '').toString())
   expect((await listResponsePromise).status()).toBe(200)
   const promotionRow = page.getByRole('listitem').filter({ hasText: promotionName })
   await expect(promotionRow).toContainText('Todos los productos')

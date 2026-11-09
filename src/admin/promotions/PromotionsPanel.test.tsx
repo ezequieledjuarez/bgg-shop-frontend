@@ -24,7 +24,7 @@ beforeAll(() => server.listen())
 beforeEach(() => {
   payload = [promotion]
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
-  window.history.replaceState({}, '', '/admin/promotions')
+  window.history.replaceState({}, '', '/admin/promociones')
 })
 afterEach(() => {
   server.resetHandlers()
@@ -40,7 +40,7 @@ describe('PromotionsPanel', () => {
     expect(screen.getByRole('listitem')).toHaveTextContent(/25%\s*de descuento/)
     expect(screen.getByRole('listitem')).toHaveTextContent(/Producto #274364/)
     expect(screen.getByRole('listitem')).toHaveTextContent(/·\s*Activa/)
-    expect(screen.getByRole('link', { name: 'Editar' })).toHaveAttribute('href', '/admin/promotions/promo-7')
+    expect(screen.getByRole('link', { name: 'Editar' })).toHaveAttribute('href', '/admin/promociones/promo-7')
   })
 
   it('labels productless promotions as global and keeps product-targeted rows distinct', async () => {

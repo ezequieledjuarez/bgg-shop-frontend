@@ -24,7 +24,7 @@ test('Admin: filter sales metrics and render the filtered BFF response', async (
     return url.pathname.endsWith('/api/v1/admin/sales-metrics')
       && response.request().method() === 'GET'
   })
-  await page.goto(new URL('/admin/sales', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/ventas', baseURL ?? '').toString())
   const defaultMetricsResponse = await defaultMetricsPromise
   expect(defaultMetricsResponse.status()).toBe(200)
   expectOpKeyOnly(defaultMetricsResponse)

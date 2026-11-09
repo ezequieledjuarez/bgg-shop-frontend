@@ -35,7 +35,7 @@ describe('ProductForm', () => {
   beforeEach(() => {
     sessionStorage.clear()
     Object.defineProperty(window, 'location', {
-      value: new URL('http://localhost/admin/products/new'),
+      value: new URL('http://localhost/admin/productos/nuevo'),
       writable: true,
     })
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'synthetic-admin-token' }))
@@ -165,7 +165,7 @@ describe('ProductForm', () => {
 
   it('shows read-only stock and sends only changed fields in a partial edit', async () => {
     Object.defineProperty(window, 'location', {
-      value: new URL('http://localhost/admin/products/42'),
+      value: new URL('http://localhost/admin/productos/42'),
       writable: true,
     })
     const request = vi.spyOn(globalThis, 'fetch')
@@ -196,7 +196,7 @@ describe('ProductForm', () => {
 
   it('shows current nonzero inventory in edit mode without an editable quantity field', async () => {
     Object.defineProperty(window, 'location', {
-      value: new URL('http://localhost/admin/products/43'),
+      value: new URL('http://localhost/admin/productos/43'),
       writable: true,
     })
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(
@@ -211,7 +211,7 @@ describe('ProductForm', () => {
 
   it('shows an explicit error when edit data cannot be loaded', async () => {
     Object.defineProperty(window, 'location', {
-      value: new URL('http://localhost/admin/products/45'),
+      value: new URL('http://localhost/admin/productos/45'),
       writable: true,
     })
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
@@ -247,7 +247,7 @@ describe('ProductForm', () => {
       }))
 
     Object.defineProperty(window, 'location', {
-      value: new URL('http://localhost/admin/products/44'),
+      value: new URL('http://localhost/admin/productos/44'),
       writable: true,
     })
     render(<ProductForm />)

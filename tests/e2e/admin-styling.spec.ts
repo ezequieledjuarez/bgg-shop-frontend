@@ -9,18 +9,18 @@ const viewports = [
 ]
 
 const adminDestinations: { path: string; heading: string | RegExp; label: string; errorState?: boolean; extraHeading?: string }[] = [
-  { path: '/admin/products', heading: 'Productos (Admin)', label: 'Productos', errorState: true },
-  { path: '/admin/promotions', heading: 'Promociones', label: 'Promociones', errorState: true },
-  { path: '/admin/coupons', heading: 'Cupones', label: 'Cupones', errorState: true },
-  { path: '/admin/gift-cards', heading: 'Generar gift card', label: 'Gift cards', errorState: false },
-  { path: '/admin/audit', heading: 'Historial de auditoría', label: 'Historial de auditoría', errorState: true },
-  { path: '/admin/sales', heading: 'Métricas de ventas', label: 'Ventas', errorState: true },
-  { path: '/admin/reviews', heading: 'Moderación de reseñas', label: 'Reseñas', errorState: true },
-  { path: '/admin/users', heading: 'Administración de usuarios', label: 'Usuarios', errorState: true },
-  { path: '/admin/products/new', heading: /producto/i, label: 'Productos' },
-  { path: '/admin/products/902014', heading: /producto/i, label: 'Productos', extraHeading: 'Ajustar inventario' },
-  { path: '/admin/promotions/new', heading: 'Crear promoción', label: 'Promociones' },
-  { path: '/admin/coupons/new', heading: 'Crear cupón', label: 'Cupones' },
+  { path: '/admin/productos', heading: 'Productos (Admin)', label: 'Productos', errorState: true },
+  { path: '/admin/promociones', heading: 'Promociones', label: 'Promociones', errorState: true },
+  { path: '/admin/cupones', heading: 'Cupones', label: 'Cupones', errorState: true },
+  { path: '/admin/tarjetas-de-regalo', heading: 'Generar gift card', label: 'Gift cards', errorState: false },
+  { path: '/admin/auditoria', heading: 'Historial de auditoría', label: 'Historial de auditoría', errorState: true },
+  { path: '/admin/ventas', heading: 'Métricas de ventas', label: 'Ventas', errorState: true },
+  { path: '/admin/resenas', heading: 'Moderación de reseñas', label: 'Reseñas', errorState: true },
+  { path: '/admin/usuarios', heading: 'Administración de usuarios', label: 'Usuarios', errorState: true },
+  { path: '/admin/productos/nuevo', heading: /producto/i, label: 'Productos' },
+  { path: '/admin/productos/902014', heading: /producto/i, label: 'Productos', extraHeading: 'Ajustar inventario' },
+  { path: '/admin/promociones/nueva', heading: 'Crear promoción', label: 'Promociones' },
+  { path: '/admin/cupones/nuevo', heading: 'Crear cupón', label: 'Cupones' },
 ]
 
 async function installSyntheticApi(page: Page) {
@@ -104,7 +104,7 @@ for (const viewport of viewports) {
       expect(layout.clippedActions).toBe(0)
     }
 
-    await page.goto('/admin/products')
+    await page.goto('/admin/productos')
     await expect(page.getByRole('link', { name: 'Crear producto' })).toBeVisible()
     await expect(page.getByRole('alert')).toBeVisible()
     await page.keyboard.press('Tab')
@@ -212,7 +212,7 @@ for (const viewport of viewports) {
       body: JSON.stringify(productPage),
     }))
     await page.setViewportSize(viewport)
-    await page.goto('/admin/products')
+    await page.goto('/admin/productos')
 
     const region = page.getByRole('region', { name: /tabla de productos, desplazamiento horizontal disponible/i })
     await expect(region).toBeVisible()

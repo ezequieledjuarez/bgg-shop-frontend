@@ -21,7 +21,7 @@ test('Admin: edit product without changing quantity or its image reference', asy
     response.url().endsWith(`/api/v1/admin/products/${id}`)
       && response.request().method() === 'GET',
   )
-  await page.goto(new URL(`/admin/products/${id}`, baseURL ?? '').toString())
+  await page.goto(new URL(`/admin/productos/${id}`, baseURL ?? '').toString())
   const initialReadBack = await initialReadBackPromise
   expect(initialReadBack.status()).toBe(200)
   await expect(page.getByLabel('Nombre', { exact: true })).toHaveValue(productName)
@@ -42,12 +42,12 @@ test('Admin: edit product without changing quantity or its image reference', asy
   expect(changes.name).toBe(updatedName)
   expect(changes).not.toHaveProperty('quantity')
 
-  await page.waitForURL(new URL('/admin/products', baseURL ?? '').toString())
+  await page.waitForURL(new URL('/admin/productos', baseURL ?? '').toString())
   const readBackPromise = page.waitForResponse((response) =>
     response.url().endsWith(`/api/v1/admin/products/${id}`)
       && response.request().method() === 'GET',
   )
-  await page.goto(new URL(`/admin/products/${id}`, baseURL ?? '').toString())
+  await page.goto(new URL(`/admin/productos/${id}`, baseURL ?? '').toString())
   const readBack = await readBackPromise
   expect(readBack.status()).toBe(200)
   expectOpKeyOnly(readBack)

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import apiFetch from '../../lib/apiClient'
 import type { components, paths } from '../../types/generated/bff-api'
+import { uiRoutes } from '../../routing/routes'
 
 type Product = components['schemas']['Product']
 type ProductPage = components['schemas']['AdminProductPage']
@@ -157,7 +158,7 @@ export default function ProductsList() {
   return (
     <main className="admin-products">
       <h1>Productos (Admin)</h1>
-      <a className="primary-button" href="/admin/products/new">Crear producto</a>
+      <a className="primary-button" href={uiRoutes.admin.newProduct}>Crear producto</a>
 
       <form className="admin-product-filters" onSubmit={handleSearch}>
         <label htmlFor="products-search">Buscar por nombre o editorial</label>
@@ -284,7 +285,7 @@ export default function ProductsList() {
                   {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(product.price)}
                 </td>
                 <td>{product.quantity}</td>
-                <td><a href={`/admin/products/${product.bgg_id}`}>Editar</a></td>
+                <td><a href={`${uiRoutes.admin.products}/${product.bgg_id}`}>Editar</a></td>
               </tr>
             ))}
           </tbody>

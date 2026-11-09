@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import apiFetch from '../../lib/apiClient'
 import type { components } from '../../types/generated/bff-api'
+import { canonicalizeUiPath } from '../../routing/routes'
 
 type Promotion = components['schemas']['AdminPromotion']
 type PromotionFields = components['schemas']['AdminPromotionFields']
@@ -67,10 +68,10 @@ function readFieldErrors(value: unknown): FieldErrors {
   return errors
 }
 
-export default function PromotionForm() {
-  const pathname = window.location.pathname
-  const routeId = pathname.match(/^\/admin\/promotions\/([^/]+)$/)?.[1]
-  const editingId = routeId && routeId !== 'new' ? routeId : undefined
+export default function PromotionForm({ pathname: routePath }: { pathname?: string } = {}) {
+  const pathname = canonicalizeUiPath(routePath ?? window.location.pathname)
+  const routeId = pathname.match(/^\/admin\/promociones\/([^/]+)$/)?.[1]
+  const editingId = routeId && routeId !== 'nueva' ? routeId : undefined
   const isEditing = editingId !== undefined
 
   const [name, setName] = useState('')

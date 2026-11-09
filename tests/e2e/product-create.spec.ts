@@ -22,7 +22,7 @@ test('Admin: create product with one WebP reference and read it back', async ({ 
     response.url().endsWith(`/api/v1/admin/products/${id}`)
       && response.request().method() === 'GET',
   )
-  await page.goto(new URL(`/admin/products/${id}`, baseURL ?? '').toString())
+  await page.goto(new URL(`/admin/productos/${id}`, baseURL ?? '').toString())
   const productResponse = await productResponsePromise
   expect(productResponse.status()).toBe(200)
   expectOpKeyOnly(productResponse)

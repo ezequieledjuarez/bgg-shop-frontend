@@ -10,6 +10,7 @@ import AuditPanel from './audit/AuditPanel'
 import SalesPanel from './sales/SalesPanel'
 import ReviewsPanel from './reviews/ReviewsPanel'
 import UserManagementPanel from './users/UserManagementPanel'
+import { canonicalizeUiPath, uiRoutes } from '../routing/routes'
 
 type AdminCapabilities = components['schemas']['CurrentUserCapabilities']
 
@@ -20,18 +21,18 @@ type AdminRoute = {
 }
 
 const adminRoutes: AdminRoute[] = [
-  { href: '/admin/products', label: 'Productos' },
-  { href: '/admin/promotions', label: 'Promociones' },
-  { href: '/admin/coupons', label: 'Cupones' },
-  { href: '/admin/gift-cards', label: 'Gift cards' },
-  { href: '/admin/audit', label: 'Historial de auditoría' },
-  { href: '/admin/sales', label: 'Ventas' },
-  { href: '/admin/reviews', label: 'Reseñas' },
-  { href: '/admin/users', label: 'Usuarios', usersOnly: true },
+  { href: uiRoutes.admin.products, label: 'Productos' },
+  { href: uiRoutes.admin.promotions, label: 'Promociones' },
+  { href: uiRoutes.admin.coupons, label: 'Cupones' },
+  { href: uiRoutes.admin.giftCards, label: 'Gift cards' },
+  { href: uiRoutes.admin.audit, label: 'Historial de auditoría' },
+  { href: uiRoutes.admin.sales, label: 'Ventas' },
+  { href: uiRoutes.admin.reviews, label: 'Reseñas' },
+  { href: uiRoutes.admin.users, label: 'Usuarios', usersOnly: true },
 ]
 
 function isUsersRoute(pathname: string) {
-  return pathname === '/admin/users' || pathname.startsWith('/admin/users/')
+  return pathname === uiRoutes.admin.users || pathname.startsWith(`${uiRoutes.admin.users}/`)
 }
 
 function activeForPath(pathname: string, href: string) {
@@ -64,7 +65,7 @@ function AdminRouter({
   capabilities: AdminCapabilities
   onNavigate: (path: string) => void
 }) {
-  const pathname = path ?? window.location.pathname
+  const pathname = canonicalizeUiPath(path ?? window.location.pathname)
   const routes = adminRoutes.filter((route) => !route.usersOnly || capabilities.is_superuser)
   let panel: ReactNode
 
@@ -75,35 +76,35 @@ function AdminRouter({
         <p>Solo una cuenta Superadmin puede administrar usuarios.</p>
       </main>
     )
-  } else if (pathname === '/admin') {
+  } else if (pathname === uiRoutes.admin.home) {
     panel = <AdminHome routes={routes} />
-  } else if (pathname === '/admin/gift-cards' || pathname.startsWith('/admin/gift-cards/')) {
+  } else if (pathname === uiRoutes.admin.giftCards || pathname.startsWith(`${uiRoutes.admin.giftCards}/`)) {
     panel = <GiftCardForm />
-  } else if (pathname === '/admin/coupons' || /^\/admin\/coupons\/(?:new|\d+)$/.test(pathname)) {
-    panel = <CouponsPanel />
-  } else if (pathname === '/admin/audit') {
+  } else if (pathname === uiRoutes.admin.coupons || new RegExp(`^${uiRoutes.admin.coupons}/(?:nuevo|\\d+)$`).test(pathname)) {
+    panel = <CouponsPanel pathname={pathname} />
+  } else if (pathname === uiRoutes.admin.audit) {
     panel = <AuditPanel />
-  } else if (pathname === '/admin/sales') {
+  } else if (pathname === uiRoutes.admin.sales) {
     panel = <SalesPanel />
-  } else if (pathname === '/admin/reviews') {
+  } else if (pathname === uiRoutes.admin.reviews) {
     panel = <ReviewsPanel />
   } else if (isUsersRoute(pathname)) {
     panel = <UserManagementPanel />
-  } else if (pathname === '/admin/products/new' || pathname.startsWith('/admin/products/new/')) {
-    panel = <ProductForm />
-  } else if (/^\/admin\/products\/\d+(?:\/|$)/.test(pathname)) {
-    panel = <ProductForm />
-  } else if (pathname === '/admin/products' || pathname.startsWith('/admin/products/')) {
+  } else if (pathname === uiRoutes.admin.newProduct || pathname.startsWith(`${uiRoutes.admin.newProduct}/`)) {
+    panel = <ProductForm pathname={pathname} />
+  } else if (new RegExp(`^${uiRoutes.admin.products}/\\d+(?:/|$)`).test(pathname)) {
+    panel = <ProductForm pathname={pathname} />
+  } else if (pathname === uiRoutes.admin.products || pathname.startsWith(`${uiRoutes.admin.products}/`)) {
     panel = <ProductsList />
-  } else if (/^\/admin\/promotions\/(?:new|\d+)(?:\/|$)/.test(pathname)
-    || pathname === '/admin/promotions' || pathname.startsWith('/admin/promotions/')) {
-    panel = <PromotionsPanel />
+  } else if (new RegExp(`^${uiRoutes.admin.promotions}/(?:nueva|[^/]+)(?:/|$)`).test(pathname)
+    || pathname === uiRoutes.admin.promotions || pathname.startsWith(`${uiRoutes.admin.promotions}/`)) {
+    panel = <PromotionsPanel pathname={pathname} />
   } else {
     panel = (
       <main className="admin-not-found">
         <h1>No encontramos esta sección</h1>
         <p>La dirección de administración no corresponde a una sección disponible.</p>
-        <a href="/admin" onClick={(event) => { event.preventDefault(); onNavigate('/admin') }}>Volver a administración</a>
+        <a href={uiRoutes.admin.home} onClick={(event) => { event.preventDefault(); onNavigate(uiRoutes.admin.home) }}>Volver a administración</a>
       </main>
     )
   }
@@ -121,9 +122,9 @@ function AdminRouter({
         <nav className="admin-navigation" aria-label="Navegación de administración">
           <a
             className="admin-nav-home"
-            href="/admin"
-            aria-current={pathname === '/admin' ? 'page' : undefined}
-            onClick={(event) => { event.preventDefault(); onNavigate('/admin') }}
+            href={uiRoutes.admin.home}
+            aria-current={pathname === uiRoutes.admin.home ? 'page' : undefined}
+            onClick={(event) => { event.preventDefault(); onNavigate(uiRoutes.admin.home) }}
           >
             Inicio de administración
           </a>

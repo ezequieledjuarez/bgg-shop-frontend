@@ -1,6 +1,8 @@
+import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from '../auth/session'
+
 export function getToken(): string | undefined {
   try {
-    const s = JSON.parse(sessionStorage.getItem('bgg-shop.session') ?? '{}') as { access_token?: string }
+    const s = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) ?? '{}') as { access_token?: string }
     return s?.access_token
   } catch {
     return undefined
@@ -16,26 +18,46 @@ export async function authFetch(input: RequestInfo, init: RequestInit = {}, toke
   return fetch(input, merged)
 }
 
-export async function silentRefresh(): Promise<boolean> {
+export type RefreshResult = 'refreshed' | 'rejected' | 'unavailable'
+
+export async function refreshSession(): Promise<RefreshResult> {
+  const sessionSnapshot = sessionStorage.getItem(SESSION_STORAGE_KEY)
   try {
-    const resp = await fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'include' })
-    if (resp.status !== 200) return false
-    const payload = await resp.json()
-    const at = payload?.access_token
-    if (!at) return false
-    // persist access token in sessionStorage in the same shape other code expects
-    const raw = JSON.stringify({ access_token: at })
-    sessionStorage.setItem('bgg-shop.session', raw)
-    // notify listeners that session changed
-    try {
-      window.dispatchEvent(new Event('bgg-shop:session-change'))
-    } catch (e) {
-      // ignore
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1'
+    const refreshUrl = `${apiBaseUrl.replace(/\/+$/, '')}/auth/refresh`
+    const resp = await fetch(refreshUrl, { method: 'POST', credentials: 'include' })
+    if (sessionStorage.getItem(SESSION_STORAGE_KEY) !== sessionSnapshot) return 'unavailable'
+    if (resp.status === 401) {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY)
+      window.dispatchEvent(new Event(SESSION_CHANGE_EVENT))
+      return 'rejected'
     }
-    return true
-  } catch (e) {
-    return false
+    if (resp.status !== 200) return 'unavailable'
+    const payload: unknown = await resp.json()
+    if (sessionStorage.getItem(SESSION_STORAGE_KEY) !== sessionSnapshot) return 'unavailable'
+    if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return 'unavailable'
+    const accessToken = (payload as Record<string, unknown>).access_token
+    if (typeof accessToken !== 'string' || !accessToken) return 'unavailable'
+    let existing: Record<string, unknown> = {}
+    try {
+      const current: unknown = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) ?? '{}')
+      if (typeof current === 'object' && current !== null && !Array.isArray(current)) {
+        existing = current as Record<string, unknown>
+      }
+    } catch {
+      existing = {}
+    }
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ ...existing, access_token: accessToken }))
+    window.dispatchEvent(new Event(SESSION_CHANGE_EVENT))
+    return 'refreshed'
+  } catch {
+    return 'unavailable'
   }
+}
+
+export async function silentRefresh(): Promise<boolean> {
+  const result = await refreshSession()
+  return result === 'refreshed'
 }
 
 export async function waitForToken(timeout = 3000, interval = 100): Promise<string | undefined> {

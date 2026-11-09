@@ -12,11 +12,21 @@ const products: components['schemas']['Product'][] = [
 ]
 
 beforeEach(() => {
+  window.history.replaceState({}, '', '/catalogo')
+  sessionStorage.clear()
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
     const url = new URL(input.toString(), 'http://localhost')
     if (url.pathname.endsWith('/product-categories')) {
       return Promise.resolve(new Response(JSON.stringify([
         'Juegos de Estrategia', 'Juegos Temáticos', 'Juegos Familiares', 'Juegos Party', 'Nueva categoría',
+      ]), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    }
+    if (url.pathname.endsWith('/product-publishers')) {
+      return Promise.resolve(new Response(JSON.stringify([
+        { publisher: 'Salt & Pepper Games', product_count: 1 },
+        { publisher: 'Asmodee Pearl Games', product_count: 1 },
+        { publisher: 'Devir', product_count: 1 },
+        { publisher: 'SD Games', product_count: 1 },
       ]), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     }
     const search = url.searchParams.get('search')

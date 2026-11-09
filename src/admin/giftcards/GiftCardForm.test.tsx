@@ -9,7 +9,7 @@ const mockedFetch = vi.mocked(apiFetch)
 
 describe('admin gift card issuance', () => {
   beforeEach(() => {
-    window.history.replaceState({}, '', '/admin/gift-cards')
+    window.history.replaceState({}, '', '/admin/tarjetas-de-regalo')
     sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
     mockedFetch.mockReset()
     mockedFetch.mockResolvedValueOnce(new Response(JSON.stringify({
