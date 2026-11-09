@@ -27,7 +27,7 @@ const watergate: components['schemas']['Product'] = {
   category: ['Juegos de Estrategia'],
   price: 90000,
   publisher: 'Salt & Pepper Games',
-  image_url: '/media/portadas/2743640.webp',
+  image_url: '/media/portadas/274364.webp',
   quantity: 10,
 }
 
