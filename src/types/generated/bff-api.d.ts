@@ -121,6 +121,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/chat/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a buyer chat conversation
+         * @description Creates a conversation for the authenticated buyer or for a new anonymous browser scope. The BFF issues an opaque HttpOnly chat_session cookie for an anonymous scope when one is not already present.         The request never accepts an owner identifier or an internal Core assertion. For an anonymous scope, the BFF derives a fresh short-lived HMAC-SHA256 assertion from the chat_session cookie for each internal Core call and sends it only in X-Chat-Assertion; the browser never supplies or receives that assertion. Core validates the assertion and derives ownership only from its validated subject. When a bearer token is supplied, the new conversation belongs to that authenticated user and is not merged with or switched to an anonymous scope.
+         */
+        post: operations["createChatConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque conversation identifier issued by the BFF. */
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read an owned chat conversation
+         * @description Returns only the caller's conversation. The BFF resolves ownership from the current authenticated buyer or the same valid anonymous browser session; it never trusts an owner ID in the request. Missing, expired, and cross-scope conversations all return the same not-found response. When a bearer token is supplied it is authoritative; the anonymous cookie is used only when no bearer token is present. For anonymous Core calls, the BFF creates a fresh assertion for each call and sends it only in the internal X-Chat-Assertion header. No assertion or owner identifier is accepted from or returned to the browser. No conversation messages or metadata are cached.
+         */
+        get: operations["getChatConversation"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an owned chat conversation
+         * @description Deletes only the caller's Core-owned PostgreSQL conversation and its messages. This operation never deletes, changes, or re-ingests ChromaDB knowledge. Missing, expired, and cross-scope conversations all return the same not-found response. A bearer token is authoritative when supplied; the anonymous cookie is used only without a bearer token. The BFF uses a fresh internal X-Chat-Assertion for each anonymous Core call; the browser does not supply or receive this assertion.
+         */
+        delete: operations["deleteChatConversation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque conversation identifier issued by the BFF. */
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a message and receive a grounded chat reply
+         * @description Accepts at most 2,000 characters and applies a shared limit of 10 requests per minute per authenticated user or anonymous browser session across chatbot endpoints. The BFF applies its shop-scope guard before any retrieval, model, catalog, or Core conversation call. Out-of-scope, personal, account, and order content is not forwarded, persisted, or echoed. Only approved FAQ material and the existing live catalog read may be used. The model receives at most the 10 previous conversation turns. Dynamic catalog results are never written to ChromaDB. The response omits the submitted text and contains only approved-source metadata and facts returned by Core. Anonymous ownership is derived by Core from a validated BFF assertion. A bearer token is authoritative when supplied; the anonymous cookie is used only when no bearer token is present. For anonymous Core calls, the BFF sends a fresh assertion only through internal X-Chat-Assertion; it is not a browser-supplied request field.
+         */
+        post: operations["sendChatMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products": {
         parameters: {
             query?: never;
@@ -1562,6 +1632,61 @@ export interface components {
                 field?: string[] | null;
             }[];
         };
+        ChatMessageRequest: {
+            /** @description Shop-related buyer question only. Personal, account, order, and transactional details are rejected before retrieval or forwarding. */
+            message: string;
+        };
+        ChatSource: {
+            title: string;
+            /** Format: uri */
+            url?: string;
+        };
+        ChatMessage: {
+            id: string;
+            /** @enum {string} */
+            role: "user" | "assistant";
+            /** @description Persisted in-scope conversation text only. Unsafe/out-of-scope submissions are not persisted or echoed. */
+            content: string;
+            /** Format: date-time */
+            created_at: string;
+            sources: components["schemas"]["ChatSource"][];
+        };
+        ChatConversation: {
+            id: string;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description Time of the most recent persisted activity.
+             */
+            updated_at: string;
+            /**
+             * Format: date-time
+             * @description 30 days after the most recent activity.
+             */
+            expires_at: string;
+            messages: components["schemas"]["ChatMessage"][];
+        };
+        ChatConversationResponse: {
+            conversation: components["schemas"]["ChatConversation"];
+        };
+        ChatReplyResponse: {
+            conversation_id: string;
+            /** @description Grounded answer, refusal, clarification, or uncertainty fallback. It must not repeat protected details from the submitted message. */
+            answer: string;
+            /** @description Approved knowledge sources used for this answer, when available. */
+            sources: components["schemas"]["ChatSource"][];
+            /** @description Current catalog products returned by Core for this request only. Product facts must not be inferred or fabricated. */
+            recommendations: components["schemas"]["Product"][];
+            /** Format: date-time */
+            created_at: string;
+        };
+        ChatErrorResponse: {
+            /** @enum {string} */
+            code: "INVALID_REQUEST" | "UNAUTHENTICATED" | "NOT_FOUND" | "RATE_LIMITED" | "SERVICE_UNAVAILABLE";
+            /** @description Stable sanitized public message; never contains submitted text or upstream details. */
+            error: string;
+        };
         ErrorResponse: {
             /**
              * @description Stable high-level error message.
@@ -1576,6 +1701,58 @@ export interface components {
         };
     };
     responses: {
+        /** @description The message is blank or exceeds 2,000 characters. The response does not echo submitted content or include internal diagnostics. */
+        ChatInvalidRequest: {
+            headers: {
+                "Cache-Control": components["headers"]["ChatNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ChatErrorResponse"];
+            };
+        };
+        /** @description Missing or invalid authentication/session scope. */
+        ChatUnauthorized: {
+            headers: {
+                "Cache-Control": components["headers"]["ChatNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ChatErrorResponse"];
+            };
+        };
+        /** @description The conversation is missing, expired, or owned by another user/session. The response does not reveal which condition occurred. */
+        ChatNotFound: {
+            headers: {
+                "Cache-Control": components["headers"]["ChatNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ChatErrorResponse"];
+            };
+        };
+        /** @description Core, approved knowledge retrieval, the local model provider, or the catalog capability is unavailable. Only a stable sanitized error is returned; no upstream exception, trace, URL, credential, or submitted content is exposed. */
+        ChatUnavailable: {
+            headers: {
+                "Cache-Control": components["headers"]["ChatNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ChatErrorResponse"];
+            };
+        };
+        /** @description The authenticated user or anonymous browser session exceeded 10 chatbot requests in one minute. */
+        ChatRateLimited: {
+            headers: {
+                "Cache-Control": components["headers"]["ChatNoStore"];
+                /** @description Minimum number of seconds before another chatbot request. */
+                "Retry-After": number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ChatErrorResponse"];
+            };
+        };
         /** @description Invalid search, cursor, limit, user identifier or single-privilege body. Core INVALID maps to 400. Only sanitized public field errors are returned. */
         UserManagementInvalidRequest: {
             headers: {
@@ -1833,6 +2010,8 @@ export interface components {
     };
     requestBodies: never;
     headers: {
+        /** @description Prevents caching of private chat content and session metadata. */
+        ChatNoStore: "no-store";
         /** @description Prevents caching of personnel data and privilege-management responses. */
         UserManagementNoStore: "no-store";
         /** @description Prevents caching of moderation data and responses. */
@@ -2107,6 +2286,119 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    createChatConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A new empty conversation was created. */
+            201: {
+                headers: {
+                    "Cache-Control": components["headers"]["ChatNoStore"];
+                    /** @description Present for a newly created anonymous browser scope only. The opaque chat_session cookie is HttpOnly, SameSite=Lax, and Secure outside local development. It is not a user identifier. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatConversationResponse"];
+                };
+            };
+            401: components["responses"]["ChatUnauthorized"];
+            429: components["responses"]["ChatRateLimited"];
+            503: components["responses"]["ChatUnavailable"];
+        };
+    };
+    getChatConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque conversation identifier issued by the BFF. */
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller-owned conversation and its persisted messages. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["ChatNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatConversationResponse"];
+                };
+            };
+            401: components["responses"]["ChatUnauthorized"];
+            404: components["responses"]["ChatNotFound"];
+            429: components["responses"]["ChatRateLimited"];
+            503: components["responses"]["ChatUnavailable"];
+        };
+    };
+    deleteChatConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque conversation identifier issued by the BFF. */
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller-owned conversation was deleted. */
+            204: {
+                headers: {
+                    "Cache-Control": components["headers"]["ChatNoStore"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["ChatUnauthorized"];
+            404: components["responses"]["ChatNotFound"];
+            429: components["responses"]["ChatRateLimited"];
+            503: components["responses"]["ChatUnavailable"];
+        };
+    };
+    sendChatMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque conversation identifier issued by the BFF. */
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description A grounded answer, recommendation, refusal, or fallback. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["ChatNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatReplyResponse"];
+                };
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["ChatUnauthorized"];
+            404: components["responses"]["ChatNotFound"];
+            429: components["responses"]["ChatRateLimited"];
+            503: components["responses"]["ChatUnavailable"];
         };
     };
     listProducts: {

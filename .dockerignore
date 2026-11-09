@@ -1,0 +1,44 @@
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+!.env.template
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.template
+
+# Source control and local private data
+.git
+**/.git
+.local/
+**/.local/
+
+# Dependencies, generated builds, and test artifacts
+node_modules/
+**/node_modules/
+dist/
+dist-ssr/
+**/dist/
+**/dist-ssr/
+.vite/
+**/.vite/
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+**/storageState.json
+logs/
+**/logs/
+*.log
+
+# Local databases and backup/archive artifacts
+*.sqlite3
+*.db
+*.dump
+*.bak
+*.backup
+*.sql.gz
+*.tar
+*.tar.gz
+*.zip

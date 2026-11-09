@@ -9,6 +9,7 @@ import { CheckoutScreen } from './checkout/CheckoutScreen'
 import { OrdersScreen, PurchaseResultScreen } from './checkout/OrdersScreen'
 import { WishlistScreen } from './wishlist/WishlistScreen'
 import AdminRouter from './admin/AdminRouter'
+import Chatbot from './chatbot/Chatbot'
 
 type SortOrder = 'default' | 'price-low' | 'price-high'
 
@@ -749,7 +750,7 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
           <div className="hero-art" aria-hidden="true">
             <div className="sun"></div>
             <div className="hero-card hero-card-back"></div>
-            <div className="hero-card hero-card-front"><span className="art-label">Play<br />together</span><span className="art-symbol">✦</span></div>
+            <div className="hero-card hero-card-front"><span className="art-label">Juguemos<br />juntos</span><span className="art-symbol">✦</span></div>
             <span className="art-spark spark-one">✦</span><span className="art-spark spark-two">·</span>
           </div>
         </section>
@@ -839,6 +840,7 @@ function CatalogApp({ onNavigate }: { onNavigate: (path: string) => void }) {
         <p>Juegos con intención, partidas con alma.</p>
         <small>© 2024 Meeple</small>
       </footer>
+      <Chatbot />
     </div>
   )
 }
