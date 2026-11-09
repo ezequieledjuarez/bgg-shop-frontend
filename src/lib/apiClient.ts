@@ -1,4 +1,4 @@
-import { operationKeyFor } from '../auth/session'
+import { ADMIN_AUTHORIZATION_DENIED_EVENT, operationKeyFor } from '../auth/session'
 
 // Minimal HTTP client wrapper to centralize Authorization injection,
 // wait-for-token logic and correlation header generation.
@@ -104,7 +104,21 @@ export async function apiFetch(input: RequestInfo, init?: ApiFetchOptions): Prom
     throw new Error('Authentication token not available after retries')
   }
 
-  return fetch(input, finalInit)
+  const response = await fetch(input, finalInit)
+  if (response.status === 401 || response.status === 403) {
+    try {
+      const base = new URL(import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1', window.location.origin)
+      const address = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      const target = new URL(address, window.location.origin)
+      const adminPrefix = `${base.pathname.replace(/\/$/, '')}/admin/`
+      if (target.origin === base.origin && target.pathname.startsWith(adminPrefix)) {
+        window.dispatchEvent(new Event(ADMIN_AUTHORIZATION_DENIED_EVENT))
+      }
+    } catch {
+      // Invalid or non-URL requests do not invalidate the current role snapshot.
+    }
+  }
+  return response
 }
 
 export default apiFetch

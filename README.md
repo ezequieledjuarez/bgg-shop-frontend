@@ -46,6 +46,24 @@ OpenAPI del BFF con `npm run generate:types`; no se editan manualmente.
 La semántica y los errores de los endpoints están en el
 [`README del BFF`](../bgg-shop-bff/README.md).
 
+## Navegación de administración
+
+Las rutas existentes bajo `/admin` comparten una navegación persistente. El
+enlace a administración y los módulos operativos se muestran según la
+capacidad actual del usuario: staff o superuser accede a los módulos
+operativos; **Usuarios** permanece reservado a superuser, incluso si
+`is_staff=false`. La interfaz consulta `GET /api/v1/auth/me` del BFF con el
+bearer de sesión y mantiene las capacidades solo en memoria; al cambiar de
+sesión, cerrar sesión o recibir una denegación, invalida y vuelve a resolver
+ese estado. La navegación del cliente no sustituye la autorización del BFF ni
+del Core para cada operación.
+
+La ruta de productos, cupones y las demás pantallas conserva sus flujos
+existentes; esta navegación no implementa CRUD nuevo. Contrato, trazabilidad y
+alcance de verificación local: [`spec.md`](../specs/014-admin-navigation/spec.md),
+[`specs/014-admin-navigation/tasks.md`](specs/014-admin-navigation/tasks.md) y
+[`quickstart.md`](../specs/014-admin-navigation/quickstart.md).
+
 La respuesta del BFF usa `snake_case` (`bgg_id`, `page_size`,
 `total_pages`, etc.) y devuelve `items` con los campos del producto. El Core
 usa GraphQL `camelCase` (`bggId`, `pageSize`, `totalPages`). Para consultar

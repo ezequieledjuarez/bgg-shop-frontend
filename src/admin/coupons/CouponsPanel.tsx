@@ -90,6 +90,7 @@ export default function CouponsPanel() {
       {loadState === 'error' ? <p role="alert">{error}</p> : null}
       {loadState === 'success' && coupons.length === 0 ? <p role="status">Todavía no hay cupones.</p> : null}
       {loadState === 'success' && coupons.length > 0 ? (
+        <div className="admin-table-scroll" role="region" aria-label="Tabla de cupones, desplazamiento horizontal disponible" tabIndex={0}>
         <table className="admin-table" aria-label="Cupones">
           <thead>
             <tr>
@@ -116,6 +117,7 @@ export default function CouponsPanel() {
             ))}
           </tbody>
         </table>
+        </div>
       ) : null}
     </main>
   )

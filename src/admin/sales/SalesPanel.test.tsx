@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -59,13 +59,14 @@ afterAll(() => server.close())
 
 describe('SalesPanel', () => {
   it('routes /admin/sales and exposes the sales navigation link', async () => {
-    const { unmount } = render(<AdminRouter path="/admin/sales" />)
+    const { unmount } = render(<AdminRouter path="/admin/sales" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
 
     expect(await screen.findByRole('heading', { name: 'Métricas de ventas' })).toBeInTheDocument()
     unmount()
 
-    render(<AdminRouter path="/admin" />)
-    expect(screen.getByRole('link', { name: 'Ventas' })).toHaveAttribute('href', '/admin/sales')
+    render(<AdminRouter path="/admin" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
+    expect(within(screen.getByRole('navigation', { name: 'Navegación de administración' }))
+      .getByRole('link', { name: 'Ventas' })).toHaveAttribute('href', '/admin/sales')
   })
 
   it('shows loading until the metrics request completes', async () => {
