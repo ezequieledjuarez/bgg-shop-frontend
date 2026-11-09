@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './session';
 import { authenticationErrorMessage } from '../ui/messages';
+import { uiRoutes } from '../routing/routes'
 
 type AuthMode = 'login' | 'register';
 
@@ -137,7 +138,7 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
       }
       if (isRegister) {
         setSubmitted(true);
-        submitTimer.current = window.setTimeout(() => navigate('/login'), 900);
+        submitTimer.current = window.setTimeout(() => navigate(uiRoutes.login), 900);
       } else if (payload.session?.access_token) {
         sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload.session));
         window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
@@ -187,7 +188,7 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
 
         <p className="auth-switch">
           {isRegister ? '¿Ya tenés una cuenta?' : '¿Es tu primera vez en BGG Shop?'}{' '}
-          <button type="button" onClick={() => navigate(isRegister ? '/login' : '/register')}>
+          <button type="button" onClick={() => navigate(isRegister ? uiRoutes.login : uiRoutes.register)}>
             {isRegister ? 'Iniciar sesión' : 'Crear una cuenta'}
           </button>
         </p>

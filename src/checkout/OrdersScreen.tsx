@@ -3,6 +3,7 @@ import type { components } from '../types/generated/bff-api'
 import { purchaseErrorMessage } from '../ui/messages'
 import { redirectToPayment } from './navigation'
 import { apiBaseUrl, confirmPayment, downloadInvoice, orderError, purchaseAccessToken, purchaseRequestOptions } from './api'
+import { uiRoutes } from '../routing/routes'
 
 type PurchaseOrder = components['schemas']['PurchaseOrder']
 type LoadState = 'loading' | 'error' | 'success'
@@ -89,7 +90,7 @@ export function OrdersScreen({ orderId, onNavigate }: { orderId?: string; onNavi
     return () => controller.abort()
   }, [orderId, retry, signedIn])
 
-  if (!signedIn) return <main className="purchase-page"><h1>Mis Compras</h1><p>Iniciá sesión para consultar tus compras.</p><button className="primary-button" type="button" onClick={() => onNavigate('/login')}>Iniciar sesión</button></main>
+  if (!signedIn) return <main className="purchase-page"><h1>Mis Compras</h1><p>Iniciá sesión para consultar tus compras.</p><button className="primary-button" type="button" onClick={() => onNavigate(uiRoutes.login)}>Iniciar sesión</button></main>
   if (loadState === 'loading') return <main className="purchase-page"><h1>{orderId ? 'Detalle de la compra' : 'Mis Compras'}</h1><p role="status">Cargando compras…</p></main>
   if (loadState === 'error') return <main className="purchase-page"><h1>{orderId ? 'Detalle de la compra' : 'Mis Compras'}</h1><p role="alert">{error}</p><button className="primary-button" type="button" onClick={() => { setLoadState('loading'); setError(null); setRetry((value) => value + 1) }}>Reintentar</button></main>
 

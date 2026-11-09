@@ -51,7 +51,7 @@ test('debug: capture console and submit product form', async ({ browser }) => {
       console.log('PAGE RES ERR', e)
     }
   })
-  await page.goto('http://localhost:3000/admin/products/new')
+  await page.goto('http://localhost:3000/admin/productos/nuevo')
   // dump sessionStorage for debugging
   await page.evaluate(() => console.log('SESSION_STORAGE:', sessionStorage.getItem('bgg-shop.session')))
   await page.fill('#product-name', `Debug Product ${Date.now()}`)

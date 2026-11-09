@@ -58,7 +58,7 @@ beforeEach(() => {
   createPayload = undefined
   updatePayload = undefined
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
-  window.history.replaceState({}, '', '/admin/promotions/new')
+  window.history.replaceState({}, '', '/admin/promociones/nueva')
 })
 afterEach(() => {
   server.resetHandlers()
@@ -132,7 +132,7 @@ describe('PromotionForm', () => {
 
   it('clears the product of an existing promotion when switching it to global', async () => {
     promotions = [promotion]
-    window.history.replaceState({}, '', '/admin/promotions/promo-1')
+    window.history.replaceState({}, '', '/admin/promociones/promo-1')
     render(<PromotionForm />)
 
     fireEvent.change(await screen.findByLabelText('Producto'), { target: { value: '' } })
@@ -154,7 +154,7 @@ describe('PromotionForm', () => {
 
   it('sends only edited fields when updating a promotion', async () => {
     promotions = [promotion]
-    window.history.replaceState({}, '', '/admin/promotions/promo-1')
+    window.history.replaceState({}, '', '/admin/promociones/promo-1')
     render(<PromotionForm />)
 
     const activeCheckbox = await screen.findByRole('checkbox', { name: 'Activa' })

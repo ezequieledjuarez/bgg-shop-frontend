@@ -46,7 +46,7 @@ beforeEach(() => {
   updateMethod = undefined
   updateUrl = undefined
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
-  window.history.replaceState({}, '', '/admin/coupons/new')
+  window.history.replaceState({}, '', '/admin/cupones/nuevo')
 })
 afterEach(() => {
   server.resetHandlers()
@@ -56,7 +56,7 @@ afterAll(() => server.close())
 
 describe('CouponForm', () => {
   it('shows an explicit loading error when an edit coupon cannot be loaded', async () => {
-    window.history.replaceState({}, '', '/admin/coupons/27')
+    window.history.replaceState({}, '', '/admin/cupones/27')
     server.use(http.get('*/api/v1/admin/coupons', () => HttpResponse.json({}, { status: 403 })))
     render(<CouponForm />)
 
@@ -141,7 +141,7 @@ describe('CouponForm', () => {
 
   it('sends only changed fields with PATCH and keeps the code immutable', async () => {
     coupons = [existingCoupon]
-    window.history.replaceState({}, '', '/admin/coupons/27')
+    window.history.replaceState({}, '', '/admin/cupones/27')
     render(<CouponForm />)
 
     const code = await screen.findByLabelText('Código')
@@ -158,7 +158,7 @@ describe('CouponForm', () => {
 
   it('deactivates an existing coupon instead of deleting it', async () => {
     coupons = [existingCoupon]
-    window.history.replaceState({}, '', '/admin/coupons/27')
+    window.history.replaceState({}, '', '/admin/cupones/27')
     render(<CouponForm />)
 
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Activo' }))

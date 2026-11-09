@@ -5,6 +5,13 @@ export type AdminCapabilities = components['schemas']['CurrentUserCapabilities']
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1'
 
+export class AdminCapabilitiesError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message)
+    this.name = 'AdminCapabilitiesError'
+  }
+}
+
 export function isAdminCapabilities(value: unknown): value is AdminCapabilities {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const keys = Object.keys(value)
@@ -24,11 +31,16 @@ export async function fetchAdminCapabilities(signal: AbortSignal): Promise<Admin
     waitForTokenTimeout: 1000,
     waitForTokenInterval: 100,
   })
-  if (!response.ok) throw new Error('No pudimos verificar tus permisos para administración.')
+  if (!response.ok) {
+    throw new AdminCapabilitiesError(
+      'No pudimos verificar tus permisos para administración.',
+      response.status,
+    )
+  }
 
   const payload: unknown = await response.json()
   if (!isAdminCapabilities(payload)) {
-    throw new Error('No pudimos verificar tus permisos para administración.')
+    throw new AdminCapabilitiesError('No pudimos verificar tus permisos para administración.')
   }
   return payload
 }

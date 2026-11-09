@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { LoginScreen, RegisterScreen } from './auth/AuthScreens';
 import { ADMIN_AUTHORIZATION_DENIED_EVENT, SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
-import { fetchAdminCapabilities, type AdminCapabilities } from './auth/adminCapabilities'
+import {
+  AdminCapabilitiesError,
+  fetchAdminCapabilities,
+  type AdminCapabilities,
+} from './auth/adminCapabilities'
 import './App.css';
 import type { components, operations } from './types/generated/bff-api'
 import { cartErrorMessage, cartMessages, reviewErrorMessage } from './ui/messages'
@@ -11,11 +15,20 @@ import { OrdersScreen, PurchaseResultScreen } from './checkout/OrdersScreen'
 import { WishlistScreen } from './wishlist/WishlistScreen'
 import AdminRouter from './admin/AdminRouter'
 import Chatbot from './chatbot/Chatbot'
+import { refreshSession } from './lib/api'
+import {
+  catalogUrl,
+  emptyCatalogUrlState,
+  readCatalogUrlState,
+  type CatalogUrlState,
+} from './catalog/urlState'
+import { canonicalizeUiPath, uiRoutes } from './routing/routes'
 
-type SortOrder = 'default' | 'price-low' | 'price-high'
+type SortOrder = CatalogUrlState['sort']
 
 type Product = components['schemas']['Product']
 type ProductPage = components['schemas']['ProductPage']
+type ProductPublisherFacet = components['schemas']['ProductPublisherFacet']
 type ProductCategories = operations['listProductCategories']['responses'][200]['content']['application/json']
 type CartResponse = components['schemas']['CartResponse']
 type CouponPreviewRequest = components['schemas']['CouponPreviewRequest']
@@ -28,6 +41,21 @@ type CreateReviewRequest = components['schemas']['CreateReviewRequest']
 const pendingReturnKey = 'bgg-shop.pending-return'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api/v1'
+
+function safeUiDestination(value: string): string | null {
+  if (!value.startsWith('/') || value.startsWith('//')) return null
+  try {
+    const target = new URL(value, window.location.origin)
+    const apiBasePath = new URL(apiBaseUrl, window.location.origin).pathname.replace(/\/+$/, '')
+    if (target.origin !== window.location.origin
+      || (apiBasePath && (target.pathname === apiBasePath || target.pathname.startsWith(`${apiBasePath}/`)))) {
+      return null
+    }
+    return canonicalizeUiPath(`${target.pathname}${target.search}${target.hash}`)
+  } catch {
+    return null
+  }
+}
 
 function slugify(value: string) {
   return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
@@ -494,13 +522,13 @@ function CartScreen({ onBack, onNavigate }: { onBack: () => void; onNavigate: (p
             cartEmpty={cart.lines.length === 0}
             onLogin={() => {
               sessionStorage.setItem(pendingReturnKey, '/carrito')
-              onNavigate('/login')
+              onNavigate(uiRoutes.login)
             }}
           />
-          {showLoginPrompt && <p role="status">Iniciá sesión para continuar con tu compra. <a href="/login" onClick={(event) => { event.preventDefault(); sessionStorage.setItem(pendingReturnKey, '/checkout'); onNavigate('/login') }}>Iniciar sesión</a></p>}
+          {showLoginPrompt && <p role="status">Iniciá sesión para continuar con tu compra. <a href={uiRoutes.login} onClick={(event) => { event.preventDefault(); sessionStorage.setItem(pendingReturnKey, uiRoutes.checkout); onNavigate(uiRoutes.login) }}>Iniciar sesión</a></p>}
           <button className="primary-button" type="button" disabled={cart.lines.length === 0 || pendingId !== null} onClick={() => {
             if (!readAccessToken()) setShowLoginPrompt(true)
-            else onNavigate('/checkout')
+            else onNavigate(uiRoutes.checkout)
           }}>Proceder al Pago</button>
         </>
       ) : null}
@@ -508,7 +536,20 @@ function CartScreen({ onBack, onNavigate }: { onBack: () => void; onNavigate: (p
   )
 }
 
-function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string) => void; canAccessAdmin: boolean }) {
+function CatalogApp({
+  onNavigate,
+  canAccessAdmin,
+  isCatalogPage,
+  capabilityError,
+  onRetryCapabilities,
+}: {
+  onNavigate: (path: string) => void
+  canAccessAdmin: boolean
+  isCatalogPage: boolean
+  capabilityError: boolean
+  onRetryCapabilities: () => void
+}) {
+  const initialUrlState = readCatalogUrlState()
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => Boolean(sessionStorage.getItem(SESSION_STORAGE_KEY)),
   )
@@ -516,20 +557,26 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
-  const [searchDraft, setSearchDraft] = useState('')
-  const [search, setSearch] = useState('')
-  const [year, setYear] = useState('')
-  const [categoryName, setCategoryName] = useState('')
+  const [searchDraft, setSearchDraft] = useState(initialUrlState.search)
+  const [search, setSearch] = useState(initialUrlState.search)
+  const [year, setYear] = useState(initialUrlState.year)
+  const [categoryName, setCategoryName] = useState(initialUrlState.categoryName)
+  const [publisher, setPublisher] = useState(initialUrlState.publisher)
   const [categories, setCategories] = useState<ProductCategories>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState(false)
   const [categoriesRetry, setCategoriesRetry] = useState(0)
-  const [minPlayers, setMinPlayers] = useState('')
-  const [maxPlayers, setMaxPlayers] = useState('')
-  const [minPrice, setMinPrice] = useState('')
-  const [maxPrice, setMaxPrice] = useState('')
-  const [sort, setSort] = useState<SortOrder>('default')
-  const [page, setPage] = useState(1)
+  const [publishers, setPublishers] = useState<ProductPublisherFacet[]>([])
+  const [publishersLoading, setPublishersLoading] = useState(true)
+  const [publishersError, setPublishersError] = useState(false)
+  const [publishersRetry, setPublishersRetry] = useState(0)
+  const [invalidUrlFilterNotice, setInvalidUrlFilterNotice] = useState<string | null>(null)
+  const [minPlayers, setMinPlayers] = useState(initialUrlState.minPlayers)
+  const [maxPlayers, setMaxPlayers] = useState(initialUrlState.maxPlayers)
+  const [minPrice, setMinPrice] = useState(initialUrlState.minPrice)
+  const [maxPrice, setMaxPrice] = useState(initialUrlState.maxPrice)
+  const [sort, setSort] = useState<SortOrder>(initialUrlState.sort)
+  const [page, setPage] = useState(initialUrlState.page)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [addingProductId, setAddingProductId] = useState<number | null>(null)
@@ -539,7 +586,58 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const invalidPlayerRange = minPlayers !== '' && maxPlayers !== '' && Number(minPlayers) > Number(maxPlayers)
   const invalidPriceRange = minPrice !== '' && maxPrice !== '' && Number(minPrice) > Number(maxPrice)
-  const invalidRange = invalidPlayerRange || invalidPriceRange
+  const invalidRange = isCatalogPage && (invalidPlayerRange || invalidPriceRange)
+
+  const currentCatalogState = (): CatalogUrlState => ({
+    search,
+    categoryName,
+    publisher,
+    year,
+    minPlayers,
+    maxPlayers,
+    minPrice,
+    maxPrice,
+    page,
+    sort,
+  })
+
+  const applyCatalogState = (
+    next: CatalogUrlState,
+    historyMode: 'push' | 'replace' | 'none' = 'push',
+  ) => {
+    setSearchDraft(next.search)
+    setSearch(next.search)
+    setCategoryName(next.categoryName)
+    setPublisher(next.publisher)
+    setYear(next.year)
+    setMinPlayers(next.minPlayers)
+    setMaxPlayers(next.maxPlayers)
+    setMinPrice(next.minPrice)
+    setMaxPrice(next.maxPrice)
+    setPage(next.page)
+    setSort(next.sort)
+    setInvalidUrlFilterNotice(null)
+    if (isCatalogPage && historyMode !== 'none') {
+      const path = catalogUrl(next, window.location.hash)
+      if (historyMode === 'push') window.history.pushState({}, '', path)
+      else window.history.replaceState(window.history.state, '', path)
+    }
+  }
+
+  useEffect(() => {
+    const handleCatalogHistory = () => {
+      applyCatalogState(readCatalogUrlState(), isCatalogPage ? 'replace' : 'none')
+    }
+    window.addEventListener('popstate', handleCatalogHistory)
+    return () => window.removeEventListener('popstate', handleCatalogHistory)
+  }, [isCatalogPage])
+
+  useEffect(() => {
+    if (!isCatalogPage) return
+    const normalized = catalogUrl(readCatalogUrlState(), window.location.hash)
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    if (current !== normalized) window.history.replaceState(window.history.state, '', normalized)
+  }, [isCatalogPage])
 
   useEffect(() => {
     if (invalidRange) {
@@ -547,14 +645,18 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
       return
     }
     const controller = new AbortController()
-    const params = new URLSearchParams({ page: String(page), page_size: '100' })
-    if (search.trim()) params.set('search', search.trim())
-    if (year) params.set('year_published', year)
-    if (categoryName) params.set('category_name', categoryName)
-    if (minPlayers) params.set('min_players', minPlayers)
-    if (maxPlayers) params.set('max_players', maxPlayers)
-    if (minPrice) params.set('price_min', minPrice)
-    if (maxPrice) params.set('price_max', maxPrice)
+    const params = new URLSearchParams({
+      page: String(isCatalogPage ? page : 1),
+      page_size: isCatalogPage ? '100' : '8',
+    })
+    if (isCatalogPage && search.trim()) params.set('search', search.trim())
+    if (isCatalogPage && year) params.set('year_published', year)
+    if (isCatalogPage && categoryName) params.set('category_name', categoryName)
+    if (isCatalogPage && publisher) params.set('publisher', publisher)
+    if (isCatalogPage && minPlayers) params.set('min_players', minPlayers)
+    if (isCatalogPage && maxPlayers) params.set('max_players', maxPlayers)
+    if (isCatalogPage && minPrice) params.set('price_min', minPrice)
+    if (isCatalogPage && maxPrice) params.set('price_max', maxPrice)
 
     setLoading(true)
     setError(null)
@@ -567,7 +669,10 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
       })
       .then((result) => {
         if (page > Math.max(1, result.total_pages)) {
-          setPage(Math.max(1, result.total_pages))
+          applyCatalogState(
+            { ...currentCatalogState(), page: Math.max(1, result.total_pages) },
+            'replace',
+          )
           return
         }
         setProducts(result.items)
@@ -583,7 +688,7 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
       })
 
     return () => controller.abort()
-  }, [search, year, categoryName, minPlayers, maxPlayers, minPrice, maxPrice, page, invalidRange, retry])
+  }, [isCatalogPage, search, year, categoryName, publisher, minPlayers, maxPlayers, minPrice, maxPrice, page, invalidRange, retry])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -598,7 +703,14 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
         }
         return value as ProductCategories
       })
-      .then(setCategories)
+      .then((value) => {
+        setCategories(value)
+        const selected = readCatalogUrlState().categoryName
+        if (isCatalogPage && selected && !value.includes(selected)) {
+          applyCatalogState({ ...readCatalogUrlState(), categoryName: '', page: 1 }, 'replace')
+          setInvalidUrlFilterNotice('La categoría del enlace no está disponible. Se muestran todas las categorías.')
+        }
+      })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === 'AbortError') return
         setCategoriesError(true)
@@ -609,23 +721,66 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
     return () => controller.abort()
   }, [categoriesRetry])
 
+  useEffect(() => {
+    const controller = new AbortController()
+    setPublishersLoading(true)
+    setPublishersError(false)
+    fetch(`${apiBaseUrl}/product-publishers`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Failed to load publishers')
+        const value: unknown = await response.json()
+        if (!Array.isArray(value)) throw new Error('Invalid publishers response')
+        const seen = new Set<string>()
+        const valid = value.every((item: unknown) => {
+          if (typeof item !== 'object' || item === null || Array.isArray(item)) return false
+          const facet = item as Record<string, unknown>
+          if (
+            typeof facet.publisher !== 'string'
+            || !facet.publisher
+            || facet.publisher !== facet.publisher.trim()
+            || facet.publisher.length > 250
+            || typeof facet.product_count !== 'number'
+            || !Number.isInteger(facet.product_count)
+            || facet.product_count < 0
+            || seen.has(facet.publisher)
+          ) return false
+          seen.add(facet.publisher)
+          return true
+        })
+        if (!valid) throw new Error('Invalid publishers response')
+        return value as ProductPublisherFacet[]
+      })
+      .then((value) => {
+        setPublishers(value)
+        const selected = readCatalogUrlState().publisher
+        if (
+          isCatalogPage
+          && selected
+          && !value.some((facet) => facet.publisher === selected)
+        ) {
+          applyCatalogState({ ...readCatalogUrlState(), publisher: '', page: 1 }, 'replace')
+          setInvalidUrlFilterNotice('La editorial del enlace no está disponible. Se muestran todos los juegos.')
+        }
+      })
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === 'AbortError') return
+        setPublishersError(true)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPublishersLoading(false)
+      })
+    return () => controller.abort()
+  }, [publishersRetry])
+
   const clearFilters = () => {
-    setSearchDraft('')
-    setSearch('')
-    setYear('')
-    setCategoryName('')
-    setMinPlayers('')
-    setMaxPlayers('')
-    setMinPrice('')
-    setMaxPrice('')
-    setSort('default')
-    setPage(1)
+    applyCatalogState(emptyCatalogUrlState)
   }
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setSearch(searchDraft.trim())
-    setPage(1)
+    const next = { ...currentCatalogState(), search: searchDraft.trim(), page: 1 }
+    if (isCatalogPage) applyCatalogState(next)
+    else onNavigate(catalogUrl(next))
   }
 
   useEffect(() => {
@@ -699,6 +854,12 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
       return 0
     })
 
+  const updateCatalogState = (changes: Partial<CatalogUrlState>) => {
+    const next = { ...currentCatalogState(), ...changes }
+    if (!Object.hasOwn(changes, 'page')) next.page = 1
+    applyCatalogState(next)
+  }
+
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -707,11 +868,11 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
           <span>Meeple</span>
         </a>
         <nav className="main-nav" aria-label="Navegación principal">
-          <a className="active" href="#catalogo">Catálogo</a>
-          <a href="#categorias">Categorías</a>
-          <a href="#editorial">Editoriales</a>
+          <a className="active" href="/catalogo" onClick={(event) => { event.preventDefault(); onNavigate('/catalogo') }}>Catálogo</a>
+          <a href="/catalogo#categorias" onClick={(event) => { event.preventDefault(); onNavigate('/catalogo#categorias') }}>Categorías</a>
+          <a href="/catalogo#editorial" onClick={(event) => { event.preventDefault(); onNavigate('/catalogo#editorial') }}>Editoriales</a>
           <a href="/carrito" onClick={(event) => { event.preventDefault(); onNavigate("/carrito") }}>{cartMessages.openCart}</a>
-          {isAuthenticated && <a href="/wishlist" onClick={(event) => { event.preventDefault(); onNavigate('/wishlist') }}>Lista de deseos</a>}
+          {isAuthenticated && <a href={uiRoutes.wishlist} onClick={(event) => { event.preventDefault(); onNavigate(uiRoutes.wishlist) }}>Lista de deseos</a>}
           {isAuthenticated && <a href="/mis-compras" onClick={(event) => { event.preventDefault(); onNavigate("/mis-compras") }}>Mis Compras</a>}
           {canAccessAdmin && <a href="/admin" onClick={(event) => { event.preventDefault(); onNavigate('/admin') }}>Administración</a>}
         </nav>
@@ -720,16 +881,22 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
             <button className="logout-button" type="button" onClick={() => void handleLogout()} disabled={logoutPending}>Cerrar sesión</button>
           ) : (
             <>
-              <a className="login-button" href="/login">Iniciar sesión</a>
-              <a className="main-nav-account" href="/register">Crear cuenta</a>
+              <a className="login-button" href={uiRoutes.login}>Iniciar sesión</a>
+              <a className="main-nav-account" href={uiRoutes.register}>Crear cuenta</a>
             </>
           )}
         </div>
       </header>
       {logoutError && <p role="alert">{logoutError}</p>}
+      {isAuthenticated && capabilityError && (
+        <p role="alert" className="account-capability-error">
+          No pudimos verificar tus permisos para administración. Revisá tu conexión e intentá nuevamente.
+          <button type="button" onClick={onRetryCapabilities}>Reintentar</button>
+        </p>
+      )}
 
       <main>
-        <section className="hero" aria-labelledby="hero-title">
+        {!isCatalogPage && <section className="hero" aria-labelledby="hero-title">
           <div className="hero-copy">
             <p className="eyebrow">Tu próxima partida empieza aquí</p>
             <h1 id="hero-title">Juegos que reúnen<br /><em>grandes historias.</em></h1>
@@ -747,7 +914,7 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
                 <button type="submit" className="primary-button">Buscar</button>
               </div>
             </form>
-            <a className="primary-button" href="#catalogo">Explorar catálogo <span aria-hidden="true">↗</span></a>
+            <a className="primary-button" href="/catalogo" onClick={(event) => { event.preventDefault(); onNavigate('/catalogo') }}>Explorar catálogo <span aria-hidden="true">↗</span></a>
           </div>
           <div className="hero-art" aria-hidden="true">
             <div className="sun"></div>
@@ -755,35 +922,72 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
             <div className="hero-card hero-card-front"><span className="art-label">Juguemos<br />juntos</span><span className="art-symbol">✦</span></div>
             <span className="art-spark spark-one">✦</span><span className="art-spark spark-two">·</span>
           </div>
-        </section>
+        </section>}
 
         <section className="catalog-section" id="catalogo" aria-labelledby="catalog-title">
           <div className="section-heading">
-            <div><p className="eyebrow">Selección de la casa</p><h2 id="catalog-title">Juegos para disfrutar</h2></div>
-            <a className="view-all" href="#catalogo">Ver todo <span aria-hidden="true">→</span></a>
+            <div>
+              <p className="eyebrow">{isCatalogPage ? 'Descubrí todo el catálogo' : 'Selección de la casa'}</p>
+              <h1 id="catalog-title">{isCatalogPage ? 'Catálogo completo' : 'Juegos para disfrutar'}</h1>
+            </div>
+            {!isCatalogPage && <a className="view-all" href="/catalogo" onClick={(event) => { event.preventDefault(); onNavigate('/catalogo') }}>Ver todo <span aria-hidden="true">→</span></a>}
           </div>
-          <div className="filter-panel" aria-label="Filtros del catálogo">
+          {!isCatalogPage && <nav className="discovery-links" aria-label="Explorar el catálogo">
+            <a id="categorias" href="/catalogo#categorias" onClick={(event) => { event.preventDefault(); onNavigate('/catalogo#categorias') }}>Categorías</a>
+            <a id="editorial" href="/catalogo#editorial" onClick={(event) => { event.preventDefault(); onNavigate('/catalogo#editorial') }}>Editoriales</a>
+          </nav>}
+          {isCatalogPage && <div className="filter-panel" aria-label="Filtros del catálogo">
+            <form className="catalog-search" onSubmit={submitSearch} role="search">
+              <label htmlFor="catalog-search">Buscar por nombre o editorial</label>
+              <div className="top-search-controls">
+                <input
+                  id="catalog-search"
+                  type="search"
+                  value={searchDraft}
+                  onChange={(event) => setSearchDraft(event.target.value)}
+                  placeholder="Ej. Devir o Watergate"
+                />
+                <button type="submit" className="primary-button">Buscar</button>
+              </div>
+            </form>
             <div className="filter-row">
               <label>Año de publicación
-                <input type="number" min="0" value={year} onChange={(event) => { setYear(event.target.value); setPage(1) }} />
+                <input type="number" min="0" value={year} onChange={(event) => updateCatalogState({ year: event.target.value })} />
               </label>
-              <label>Categoría
-                <select value={categoryName} onChange={(event) => { setCategoryName(event.target.value); setPage(1) }} disabled={categoriesLoading || categoriesError}>
+              <label id="categorias">Categoría
+                <select value={categoryName} onChange={(event) => updateCatalogState({ categoryName: event.target.value })} disabled={categoriesLoading || categoriesError}>
                   <option value="">Todas las categorías</option>
+                  {categoryName && !categories.includes(categoryName) && <option value={categoryName}>{categoryName}</option>}
                   {categories.map((category) => <option value={category} key={category}>{category}</option>)}
                 </select>
               </label>
+              <label id="editorial">Editorial
+                <select
+                  value={publisher}
+                  onChange={(event) => updateCatalogState({ publisher: event.target.value })}
+                  disabled={publishersLoading || publishersError}
+                >
+                  <option value="">Todas las editoriales</option>
+                  {publisher && !publishers.some((facet) => facet.publisher === publisher)
+                    && <option value={publisher}>{publisher} (No disponible)</option>}
+                  {publishers.map((facet) => (
+                    <option value={facet.publisher} key={facet.publisher}>
+                      {facet.publisher} ({facet.product_count} {facet.product_count === 1 ? 'juego' : 'juegos'})
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>Mínimo de jugadores
-                <input type="number" min="1" value={minPlayers} aria-invalid={invalidPlayerRange} aria-describedby={invalidPlayerRange ? 'player-range-error' : undefined} onChange={(event) => { setMinPlayers(event.target.value); setPage(1) }} />
+                <input type="number" min="1" value={minPlayers} aria-invalid={invalidPlayerRange} aria-describedby={invalidPlayerRange ? 'player-range-error' : undefined} onChange={(event) => updateCatalogState({ minPlayers: event.target.value })} />
               </label>
               <label>Máximo de jugadores
-                <input type="number" min="1" value={maxPlayers} aria-invalid={invalidPlayerRange} aria-describedby={invalidPlayerRange ? 'player-range-error' : undefined} onChange={(event) => { setMaxPlayers(event.target.value); setPage(1) }} />
+                <input type="number" min="1" value={maxPlayers} aria-invalid={invalidPlayerRange} aria-describedby={invalidPlayerRange ? 'player-range-error' : undefined} onChange={(event) => updateCatalogState({ maxPlayers: event.target.value })} />
               </label>
               <label>Precio mínimo
-                <input type="number" min="0" value={minPrice} aria-invalid={invalidPriceRange} aria-describedby={invalidPriceRange ? 'price-range-error' : undefined} onChange={(event) => { setMinPrice(event.target.value); setPage(1) }} />
+                <input type="number" min="0" value={minPrice} aria-invalid={invalidPriceRange} aria-describedby={invalidPriceRange ? 'price-range-error' : undefined} onChange={(event) => updateCatalogState({ minPrice: event.target.value })} />
               </label>
               <label>Precio máximo
-                <input type="number" min="0" value={maxPrice} aria-invalid={invalidPriceRange} aria-describedby={invalidPriceRange ? 'price-range-error' : undefined} onChange={(event) => { setMaxPrice(event.target.value); setPage(1) }} />
+                <input type="number" min="0" value={maxPrice} aria-invalid={invalidPriceRange} aria-describedby={invalidPriceRange ? 'price-range-error' : undefined} onChange={(event) => updateCatalogState({ maxPrice: event.target.value })} />
               </label>
             </div>
             {invalidRange && <div role="alert">
@@ -791,9 +995,12 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
               {invalidPriceRange && <p id="price-range-error">El precio mínimo no puede superar el máximo.</p>}
             </div>}
             {categoriesError && <p role="alert">No se pudieron cargar las categorías. <button type="button" onClick={() => setCategoriesRetry((value) => value + 1)}>Reintentar categorías</button></p>}
+            {publishersLoading && <p role="status">Cargando editoriales...</p>}
+            {publishersError && <p role="alert">No se pudieron cargar las editoriales. <button type="button" onClick={() => setPublishersRetry((value) => value + 1)}>Reintentar editoriales</button></p>}
+            {invalidUrlFilterNotice && <p role="status">{invalidUrlFilterNotice}</p>}
             <div className="catalog-toolbar">
               <label className="sort-control">Ordenar página por
-                <select value={sort} onChange={(event) => setSort(event.target.value as SortOrder)} aria-label="Ordenar productos">
+                <select value={sort} onChange={(event) => updateCatalogState({ sort: event.target.value as SortOrder })} aria-label="Ordenar productos">
                   <option value="default">Orden del catálogo</option>
                   <option value="price-low">Precio menor</option>
                   <option value="price-high">Precio mayor</option>
@@ -802,7 +1009,7 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
             </div>
             {!loading && !error && !invalidRange && <div className="results-summary" aria-live="polite">{total} resultados</div>}
             <button type="button" className="clear-filters" onClick={clearFilters}>Limpiar filtros</button>
-          </div>
+          </div>}
           {cartFeedback && <p role={cartFeedbackError ? "alert" : "status"} aria-live={cartFeedbackError ? "assertive" : "polite"}>{cartFeedback}</p>}
           {invalidRange ? null : loading ? (
             <div className="empty-state" role="status">Cargando catálogo...</div>
@@ -821,20 +1028,20 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
           ) : (
             <div className="product-grid">{visibleProducts.map((product) => <ProductCard product={product} key={product.bgg_id} onOpen={(selected) => { window.history.pushState({}, '', `/juegos/${slugify(selected.name)}?bgg_id=${selected.bgg_id}`); window.dispatchEvent(new PopStateEvent('popstate')) }} onAdd={addProductToCart} adding={addingProductId === product.bgg_id} />)}</div>
           )}
-          {!invalidRange && !error && totalPages > 1 && (
+          {isCatalogPage && !invalidRange && !error && totalPages > 1 && (
             <nav className="catalog-pagination" aria-label="Páginas del catálogo">
-              <button type="button" aria-label="Página anterior" disabled={loading || page <= 1} onClick={() => setPage((value) => value - 1)}>Anterior</button>
+              <button type="button" aria-label="Página anterior" disabled={loading || page <= 1} onClick={() => updateCatalogState({ page: page - 1 })}>Anterior</button>
               <span aria-live="polite">Página {page} de {totalPages}</span>
-              <button type="button" aria-label="Página siguiente" disabled={loading || page >= totalPages} onClick={() => setPage((value) => value + 1)}>Siguiente</button>
+              <button type="button" aria-label="Página siguiente" disabled={loading || page >= totalPages} onClick={() => updateCatalogState({ page: page + 1 })}>Siguiente</button>
             </nav>
           )}
         </section>
 
-        <section className="editorial-banner" id="editorial" aria-label="Manifiesto de Meeple">
+        {!isCatalogPage && <section className="editorial-banner" id="home-editorial" aria-label="Manifiesto de Meeple">
           <p className="eyebrow">Más que una tienda</p>
           <h2>El mundo es mejor<br /><em>cuando jugamos juntos.</em></h2>
           <p>Elegimos cada título pensando en esos momentos que se quedan contigo mucho después de guardar la caja.</p>
-        </section>
+        </section>}
       </main>
 
       <footer className="site-footer">
@@ -848,7 +1055,14 @@ function CatalogApp({ onNavigate, canAccessAdmin }: { onNavigate: (path: string)
 }
 
 function App() {
-  const [pathname, setPathname] = useState(window.location.pathname)
+  const [pathname, setPathname] = useState(() => {
+    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    const canonicalPath = canonicalizeUiPath(currentPath)
+    if (canonicalPath !== currentPath) {
+      window.history.replaceState(window.history.state, '', canonicalPath)
+    }
+    return new URL(canonicalPath, window.location.origin).pathname
+  })
   const [capabilityState, setCapabilityState] = useState<
     { status: 'idle' } |
     { status: 'loading' } |
@@ -858,19 +1072,31 @@ function App() {
   const [sessionRevision, setSessionRevision] = useState(0)
   const [capabilityRetry, setCapabilityRetry] = useState(0)
   const capabilityRequestId = useRef(0)
+  const refreshAttemptedToken = useRef<string | null>(null)
   const accessToken = readAccessToken()
   const adminRouteKey = pathname === '/admin' || pathname.startsWith('/admin/') ? pathname : null
-  const capabilityRouteKey = adminRouteKey ?? (pathname === '/' ? 'storefront' : null)
+  const capabilityRouteKey = adminRouteKey ?? (
+    pathname === '/' || pathname === '/catalogo' ? 'storefront' : null
+  )
 
   useEffect(() => {
     const handlePopState = () => {
-      let nextPath = window.location.pathname
+      let nextUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+      const canonicalUrl = canonicalizeUiPath(nextUrl)
+      if (canonicalUrl !== nextUrl) {
+        window.history.replaceState(window.history.state, '', canonicalUrl)
+        nextUrl = canonicalUrl
+      }
+      let nextPath = new URL(nextUrl, window.location.origin).pathname
       if (nextPath === '/' && readAccessToken()) {
         const destination = sessionStorage.getItem(pendingReturnKey)
         if (destination) {
           sessionStorage.removeItem(pendingReturnKey)
-          window.history.pushState({}, '', destination)
-          nextPath = destination
+          const safeDestination = safeUiDestination(destination)
+          if (safeDestination) {
+            window.history.pushState({}, '', safeDestination)
+            nextPath = new URL(safeDestination, window.location.origin).pathname
+          }
         }
       }
       setPathname(nextPath)
@@ -909,9 +1135,27 @@ function App() {
           || readAccessToken() !== accessToken) return
         setCapabilityState({ status: 'ready', capabilities })
       })
-      .catch(() => {
+      .catch(async (reason: unknown) => {
         if (controller.signal.aborted || capabilityRequestId.current !== requestId
           || readAccessToken() !== accessToken) return
+        if (reason instanceof AdminCapabilitiesError && reason.status === 401) {
+          if (refreshAttemptedToken.current === accessToken) {
+            sessionStorage.removeItem(SESSION_STORAGE_KEY)
+            window.dispatchEvent(new Event(SESSION_CHANGE_EVENT))
+            return
+          }
+          refreshAttemptedToken.current = accessToken
+          const refreshResult = await refreshSession()
+          if (refreshResult !== 'unavailable') {
+            if (refreshResult === 'refreshed') {
+              refreshAttemptedToken.current = readAccessToken() ?? accessToken
+            }
+            return
+          }
+          if (controller.signal.aborted || capabilityRequestId.current !== requestId
+            || readAccessToken() !== accessToken) return
+          refreshAttemptedToken.current = null
+        }
         setCapabilityState({ status: 'error' })
       })
     return () => {
@@ -921,26 +1165,32 @@ function App() {
   }, [accessToken, sessionRevision, capabilityRouteKey, capabilityRetry])
 
   const navigate = useCallback((path: string) => {
-    window.history.pushState({}, '', path)
-    setPathname(path)
+    const target = new URL(path, window.location.origin)
+    if (target.origin !== window.location.origin) return
+    const canonicalUrl = canonicalizeUiPath(`${target.pathname}${target.search}${target.hash}`)
+    const canonicalTarget = new URL(canonicalUrl, window.location.origin)
+    window.history.pushState({}, '', canonicalUrl)
+    setPathname(canonicalTarget.pathname)
   }, [])
 
   const navigateToLoginAndReturn = useCallback((destination: string) => {
-    sessionStorage.setItem(pendingReturnKey, destination)
-    navigate('/login')
+    const safeDestination = safeUiDestination(destination)
+    if (safeDestination) sessionStorage.setItem(pendingReturnKey, safeDestination)
+    else sessionStorage.removeItem(pendingReturnKey)
+    navigate(uiRoutes.login)
   }, [navigate])
-  const loginAndReturnToWishlist = useCallback(() => navigateToLoginAndReturn('/wishlist'), [navigateToLoginAndReturn])
+  const loginAndReturnToWishlist = useCallback(() => navigateToLoginAndReturn(uiRoutes.wishlist), [navigateToLoginAndReturn])
 
   useEffect(() => {
-    if ((pathname === '/wishlist' || pathname === '/admin' || pathname.startsWith('/admin/')) && window.location.pathname === pathname && !readAccessToken()) {
+    if ((pathname === uiRoutes.wishlist || pathname === '/admin' || pathname.startsWith('/admin/')) && window.location.pathname === pathname && !readAccessToken()) {
       sessionStorage.setItem(pendingReturnKey, pathname)
-      window.history.pushState({}, '', '/login')
+      window.history.pushState({}, '', uiRoutes.login)
       window.dispatchEvent(new PopStateEvent('popstate'))
     }
   }, [pathname])
 
-  if (pathname === '/login') return <LoginScreen onBack={() => navigate('/')} />
-  if (pathname === '/register') return <RegisterScreen onBack={() => navigate('/')} />
+  if (pathname === uiRoutes.login) return <LoginScreen onBack={() => navigate('/')} />
+  if (pathname === uiRoutes.register) return <RegisterScreen onBack={() => navigate('/')} />
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
     if (!accessToken) return <LoginScreen onBack={() => navigate('/')} />
     if (capabilityState.status === 'idle' || capabilityState.status === 'loading') {
@@ -967,10 +1217,10 @@ function App() {
     return <AdminRouter path={pathname} capabilities={capabilities} onNavigate={navigate} />
   }
   if (pathname === '/carrito') return <CartScreen onBack={() => navigate('/')} onNavigate={navigate} />
-  if (pathname === '/wishlist') return readAccessToken()
+  if (pathname === uiRoutes.wishlist) return readAccessToken()
     ? <WishlistScreen onBack={() => navigate('/')} onLogin={loginAndReturnToWishlist} />
     : <LoginScreen onBack={() => navigate('/')} />
-  if (pathname === '/checkout') return <CheckoutScreen onBack={() => navigate('/carrito')} onLogin={() => navigateToLoginAndReturn('/checkout')} onOrder={(id) => navigate(`/mis-compras/${encodeURIComponent(id)}`)} />
+  if (pathname === uiRoutes.checkout) return <CheckoutScreen onBack={() => navigate('/carrito')} onLogin={() => navigateToLoginAndReturn(uiRoutes.checkout)} onOrder={(id) => navigate(`/mis-compras/${encodeURIComponent(id)}`)} />
   if (pathname === '/compra/resultado') return <PurchaseResultScreen />
   if (pathname === '/mis-compras') return <OrdersScreen onNavigate={navigate} />
   if (pathname.startsWith('/mis-compras/')) return <OrdersScreen orderId={decodeURIComponent(pathname.slice('/mis-compras/'.length))} onNavigate={navigate} />
@@ -982,7 +1232,11 @@ function App() {
     />
   }
   return <CatalogApp
+    key={pathname}
     onNavigate={navigate}
+    isCatalogPage={pathname === '/catalogo'}
+    capabilityError={capabilityState.status === 'error'}
+    onRetryCapabilities={() => setCapabilityRetry((retry) => retry + 1)}
     canAccessAdmin={capabilityState.status === 'ready'
       && (capabilityState.capabilities.is_staff || capabilityState.capabilities.is_superuser)}
   />

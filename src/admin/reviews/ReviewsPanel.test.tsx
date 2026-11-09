@@ -91,7 +91,7 @@ beforeEach(() => {
   queueRequests = 0
   moderationRequest = undefined
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
-  window.history.replaceState({}, '', '/admin/reviews')
+  window.history.replaceState({}, '', '/admin/resenas')
 })
 afterEach(() => {
   server.resetHandlers()

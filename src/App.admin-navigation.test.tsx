@@ -44,9 +44,9 @@ describe('role-aware administration navigation', () => {
     expect(mocks.apiFetch.mock.calls[0][0]).toMatch(/\/api\/v1\/auth\/me$/)
     expect(mocks.apiFetch.mock.calls[0][1].cache).toBe('no-store')
     const navigation = screen.getByRole('navigation', { name: 'Navegación de administración' })
-    expect(within(navigation).getByRole('link', { name: 'Productos' })).toHaveAttribute('href', '/admin/products')
+    expect(within(navigation).getByRole('link', { name: 'Productos' })).toHaveAttribute('href', '/admin/productos')
     if (usersVisible) {
-      expect(within(navigation).getByRole('link', { name: 'Usuarios' })).toHaveAttribute('href', '/admin/users')
+      expect(within(navigation).getByRole('link', { name: 'Usuarios' })).toHaveAttribute('href', '/admin/usuarios')
     } else {
       expect(within(navigation).queryByRole('link', { name: 'Usuarios' })).not.toBeInTheDocument()
     }
@@ -74,7 +74,7 @@ describe('role-aware administration navigation', () => {
   })
 
   it('does not request the personnel list for staff-only users on direct Users loads', async () => {
-    setLocation('/admin/users')
+    setLocation('/admin/usuarios')
     setSession()
 
     render(<App />)
@@ -162,7 +162,7 @@ describe('role-aware administration navigation', () => {
   it('does not request capabilities or render administration when signed out', async () => {
     render(<App />)
 
-    await waitFor(() => expect(window.location.pathname).toBe('/login'))
+    await waitFor(() => expect(window.location.pathname).toBe('/iniciar-sesion'))
     expect(mocks.apiFetch).not.toHaveBeenCalled()
     expect(screen.queryByRole('navigation', { name: 'Navegación de administración' })).not.toBeInTheDocument()
   })

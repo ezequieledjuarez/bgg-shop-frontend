@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import apiFetch from '../../lib/apiClient'
 import type { components, operations } from '../../types/generated/bff-api'
+import { canonicalizeUiPath, uiRoutes } from '../../routing/routes'
 
 type Coupon = components['schemas']['AdminCoupon']
 type CreateCouponOperationRequest = operations['adminCreateCoupon']['requestBody']['content']['application/json']
@@ -77,9 +78,9 @@ function sameDate(left: string | null, right: string | null): boolean {
   return Date.parse(left) === Date.parse(right)
 }
 
-export default function CouponForm() {
-  const pathname = window.location.pathname
-  const routeId = pathname.match(/^\/admin\/coupons\/(\d+)$/)?.[1]
+export default function CouponForm({ pathname: routePath }: { pathname?: string } = {}) {
+  const pathname = canonicalizeUiPath(routePath ?? window.location.pathname)
+  const routeId = pathname.match(new RegExp(`^${uiRoutes.admin.coupons}/(\\d+)$`))?.[1]
   const editingId = routeId ? Number(routeId) : undefined
   const isEditing = editingId !== undefined
 

@@ -17,7 +17,7 @@ test('Admin: filter audit history and traverse its cursor pages', async ({ page,
     price: '12.00',
     quantity: '2',
   })
-  await page.goto(new URL(`/admin/products/${productId}`, baseURL ?? '').toString())
+  await page.goto(new URL(`/admin/productos/${productId}`, baseURL ?? '').toString())
   await page.getByLabel('Nombre', { exact: true }).fill(`${productName} updated`)
   const updatePromise = page.waitForResponse((response) =>
     response.url().endsWith(`/api/v1/admin/products/${productId}`)
@@ -27,13 +27,13 @@ test('Admin: filter audit history and traverse its cursor pages', async ({ page,
   const updateResponse = await updatePromise
   expect(updateResponse.status()).toBe(200)
   expectOpKeyOnly(updateResponse)
-  await page.waitForURL(new URL('/admin/products', baseURL ?? '').toString())
+  await page.waitForURL(new URL('/admin/productos', baseURL ?? '').toString())
 
   const initialAuditPromise = page.waitForResponse((response) =>
     response.url().includes('/api/v1/admin/audit?')
       && response.request().method() === 'GET',
   )
-  await page.goto(new URL('/admin/audit', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/auditoria', baseURL ?? '').toString())
   const initialAudit = await initialAuditPromise
   expect(initialAudit.status()).toBe(200)
   expectOpKeyOnly(initialAudit)

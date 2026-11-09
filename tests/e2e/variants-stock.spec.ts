@@ -17,7 +17,7 @@ test('Admin: adjust product stock through the current inventory form', async ({ 
     price: '14.00',
     quantity: '5',
   })
-  await page.goto(new URL(`/admin/products/${id}`, baseURL ?? '').toString())
+  await page.goto(new URL(`/admin/productos/${id}`, baseURL ?? '').toString())
   await expect(page.getByText('Existencias actuales: 5', { exact: true })).toBeVisible()
 
   await page.getByLabel('Tipo de movimiento', { exact: true }).selectOption('OUT')

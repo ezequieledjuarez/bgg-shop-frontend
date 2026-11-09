@@ -76,7 +76,7 @@ beforeEach(() => {
   privilegeStatus = 200
   listStatus = 200
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'synthetic-admin-token' }))
-  window.history.replaceState({}, '', '/admin/users')
+  window.history.replaceState({}, '', '/admin/usuarios')
 })
 afterEach(() => {
   server.resetHandlers()
@@ -86,7 +86,7 @@ afterAll(() => server.close())
 
 describe('UserManagementPanel', () => {
   it('searches and selects existing users, and saves each privilege independently', async () => {
-    render(<AdminRouter path="/admin/users" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
+    render(<AdminRouter path="/admin/usuarios" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
 
     expect(await screen.findByRole('heading', { name: /administración de usuarios/i })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: /usuarios/i })).toBeInTheDocument()
@@ -139,7 +139,7 @@ describe('UserManagementPanel', () => {
   it('does not expose personnel after the listing endpoint refuses access', async () => {
     // This verifies the UI response to a BFF denial, not a frontend authorization boundary.
     listStatus = 403
-    render(<AdminRouter path="/admin/users" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
+    render(<AdminRouter path="/admin/usuarios" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.queryByText(/synthetic private upstream detail/i)).not.toBeInTheDocument()
@@ -160,10 +160,10 @@ describe('UserManagementPanel', () => {
     expect(navigation).toHaveTextContent('Historial de auditoría')
     expect(navigation).toHaveTextContent('Ventas')
     expect(navigation).toHaveTextContent('Reseñas')
-    expect(within(navigation).getByRole('link', { name: 'Usuarios' })).toHaveAttribute('href', '/admin/users')
+    expect(within(navigation).getByRole('link', { name: 'Usuarios' })).toHaveAttribute('href', '/admin/usuarios')
     unmount()
 
-    render(<AdminRouter path="/admin/users" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
+    render(<AdminRouter path="/admin/usuarios" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
     expect(await screen.findByRole('heading', { name: /administración de usuarios/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /crear usuario|invitar empleado|alta de empleado/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /crear usuario|invitar empleado|alta de empleado/i })).not.toBeInTheDocument()
@@ -175,7 +175,7 @@ describe('UserManagementPanel', () => {
       ...initialUsers[0],
       is_superuser: true,
     }]
-    render(<AdminRouter path="/admin/users" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
+    render(<AdminRouter path="/admin/usuarios" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
 
     expect(await screen.findByRole('heading', { name: /administración de usuarios/i })).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /seleccionar.*ada@example\.test/i }))

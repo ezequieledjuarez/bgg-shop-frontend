@@ -141,6 +141,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-publishers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List public catalog publishers and distinct-game counts
+         * @description Returns the complete unpaginated publisher facet list from the public catalog. Counts are global across search, category, other filters, and pagination, and count distinct games rather than inventory units. Publisher identity is the trimmed stored name; duplicate values after trimming are grouped, case variants remain distinct, and spelling is preserved. Blank publisher values are excluded. Public products with zero inventory remain eligible when present in the catalog.
+         */
+        get: operations["listProductPublishers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chat/conversations": {
         parameters: {
             query?: never;
@@ -1577,6 +1597,12 @@ export interface components {
             /** @example 1 */
             total_pages: number;
         };
+        ProductPublisherFacet: {
+            /** @description Trimmed, case-sensitive publisher identity and display name. */
+            publisher: string;
+            /** @description Count of distinct eligible public catalog games. */
+            product_count: number;
+        };
         CheckoutRequest: {
             /** @enum {string} */
             shipping_mode: "standard" | "pickup";
@@ -2382,6 +2408,47 @@ export interface operations {
             };
         };
     };
+    listProductPublishers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete ordered publisher facet list; empty means no eligible publishers. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "publisher": "Kosmos",
+                     *         "product_count": 7
+                     *       },
+                     *       {
+                     *         "publisher": "Salt & Pepper Games",
+                     *         "product_count": 3
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["ProductPublisherFacet"][];
+                };
+            };
+            /** @description Core is unavailable or returned invalid facet data. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     createChatConversation: {
         parameters: {
             query?: never;
@@ -2520,6 +2587,8 @@ export interface operations {
                 category_id?: components["parameters"]["CategoryId"];
                 /** @description Exact category name returned by the product categories endpoint. */
                 category_name?: components["parameters"]["CategoryName"];
+                /** @description Exact publisher name. Matching is case-sensitive after trimming surrounding whitespace and is combined with every other supplied filter using AND semantics. */
+                publisher?: string;
                 /** @description Inclusive minimum price. */
                 price_min?: components["parameters"]["PriceMin"];
                 /** @description Inclusive maximum price. */

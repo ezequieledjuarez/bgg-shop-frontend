@@ -9,7 +9,7 @@ test.describe('Admin flows', () => {
   test('navigate to admin products and open create form', async ({ page, baseURL }) => {
     requireIsolatedOpKeyEnvironment(baseURL)
     await loginAsIsolatedAdmin(page, baseURL)
-    await page.goto(`${baseURL}/admin/products`)
+    await page.goto(`${baseURL}/admin/productos`)
     await expect(page.locator('h1')).toHaveText(/Productos/i)
     await page.getByRole('link', { name: 'Crear producto', exact: true }).click()
     await expect(page).toHaveURL(/\/admin\/products\/new/)
@@ -18,7 +18,7 @@ test.describe('Admin flows', () => {
 
   test('OpKey login, admin access, and logout', async ({ page, baseURL }) => {
     const { apiBaseUrl } = requireIsolatedOpKeyEnvironment(baseURL)
-    await page.goto(`${baseURL}/login`)
+    await page.goto(`${baseURL}/iniciar-sesion`)
     await page.getByLabel('Correo electrónico', { exact: true }).fill(process.env.E2E_OPKEY_EMAIL!)
     await page.getByLabel('Contraseña', { exact: true }).fill(process.env.E2E_OPKEY_PASSWORD!)
     const loginResponse = page.waitForResponse(response => response.url().endsWith('/api/v1/auth/login') && response.request().method() === 'POST')
@@ -30,7 +30,7 @@ test.describe('Admin flows', () => {
     expect(operationKey).toBeTruthy()
 
     const adminResponse = page.waitForResponse(response => response.url().includes('/api/v1/admin/products?') && response.request().method() === 'GET')
-    await page.goto(`${baseURL}/admin/products`)
+    await page.goto(`${baseURL}/admin/productos`)
     const admin = await adminResponse
     expect(admin.status()).toBe(200)
     expectOpKeyOnly(admin)

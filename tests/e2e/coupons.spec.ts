@@ -11,7 +11,7 @@ test('Admin: create, list, and edit a coupon with validated discount limits', as
   await loginAsIsolatedAdmin(page, baseURL)
 
   const code = `E2E007${randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`
-  await page.goto(new URL('/admin/coupons/new', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/cupones/nuevo', baseURL ?? '').toString())
   await page.getByLabel('Código', { exact: true }).fill(code)
   await page.getByLabel('Descuento (%)', { exact: true }).fill('51')
   await page.getByLabel('Usos restantes', { exact: true }).fill('4')
@@ -46,7 +46,7 @@ test('Admin: create, list, and edit a coupon with validated discount limits', as
     response.url().endsWith('/api/v1/admin/coupons')
       && response.request().method() === 'GET',
   )
-  await page.goto(new URL('/admin/coupons', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/cupones', baseURL ?? '').toString())
   const listResponse = await listResponsePromise
   expect(listResponse.status()).toBe(200)
   const couponRow = page.getByRole('row').filter({ hasText: code })
@@ -77,7 +77,7 @@ test('Admin: create, list, and edit a coupon with validated discount limits', as
     response.url().endsWith('/api/v1/admin/coupons')
       && response.request().method() === 'GET',
   )
-  await page.goto(new URL('/admin/coupons', baseURL ?? '').toString())
+  await page.goto(new URL('/admin/cupones', baseURL ?? '').toString())
   const rereadResponse = await rereadResponsePromise
   expect(rereadResponse.status()).toBe(200)
   const rereadCoupon = page.getByRole('row').filter({ hasText: code })

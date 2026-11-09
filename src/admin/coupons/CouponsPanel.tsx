@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import apiFetch from '../../lib/apiClient'
 import type { components } from '../../types/generated/bff-api'
 import CouponForm from './CouponForm'
+import { canonicalizeUiPath, uiRoutes } from '../../routing/routes'
 
 type Coupon = components['schemas']['AdminCoupon']
 
@@ -49,9 +50,9 @@ function formatDate(value: string | null): string {
   return new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
-export default function CouponsPanel() {
-  const pathname = window.location.pathname
-  const isForm = pathname === '/admin/coupons/new' || /^\/admin\/coupons\/\d+$/.test(pathname)
+export default function CouponsPanel({ pathname: routePath }: { pathname?: string } = {}) {
+  const pathname = canonicalizeUiPath(routePath ?? window.location.pathname)
+  const isForm = pathname === uiRoutes.admin.newCoupon || new RegExp(`^${uiRoutes.admin.coupons}/\\d+$`).test(pathname)
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [loadState, setLoadState] = useState<'loading' | 'error' | 'success'>('loading')
   const [error, setError] = useState<string | null>(null)
@@ -79,13 +80,13 @@ export default function CouponsPanel() {
     return () => controller.abort()
   }, [isForm])
 
-  if (isForm) return <CouponForm />
+  if (isForm) return <CouponForm pathname={pathname} />
 
   return (
     <main className="admin-coupons">
       <h1>Cupones</h1>
       <p>Administrá descuentos para compras completas. Los códigos distinguen mayúsculas y minúsculas.</p>
-      <a className="primary-button" href="/admin/coupons/new">Crear cupón</a>
+      <a className="primary-button" href={uiRoutes.admin.newCoupon}>Crear cupón</a>
       {loadState === 'loading' ? <p role="status">Cargando cupones...</p> : null}
       {loadState === 'error' ? <p role="alert">{error}</p> : null}
       {loadState === 'success' && coupons.length === 0 ? <p role="status">Todavía no hay cupones.</p> : null}
@@ -112,7 +113,7 @@ export default function CouponsPanel() {
                 <td>{coupon.active ? 'Activo' : 'Inactivo'}</td>
                 <td>{formatDate(coupon.starts_at)}</td>
                 <td>{formatDate(coupon.ends_at)}</td>
-                <td><a href={`/admin/coupons/${coupon.id}`}>Editar / activar o desactivar</a></td>
+                <td><a href={`${uiRoutes.admin.coupons}/${coupon.id}`}>Editar / activar o desactivar</a></td>
               </tr>
             ))}
           </tbody>

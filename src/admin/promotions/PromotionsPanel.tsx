@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import apiFetch from '../../lib/apiClient'
 import type { components } from '../../types/generated/bff-api'
 import PromotionForm from './PromotionForm'
+import { canonicalizeUiPath, uiRoutes } from '../../routing/routes'
 
 type Promotion = components['schemas']['AdminPromotion']
 
@@ -28,9 +29,9 @@ function responseMessage(response: Response): string {
   return 'No se pudieron cargar las promociones.'
 }
 
-export default function PromotionsPanel() {
-  const pathname = window.location.pathname
-  const routeId = pathname.match(/^\/admin\/promotions\/([^/]+)$/)?.[1]
+export default function PromotionsPanel({ pathname: routePath }: { pathname?: string } = {}) {
+  const pathname = canonicalizeUiPath(routePath ?? window.location.pathname)
+  const routeId = pathname.match(/^\/admin\/promociones\/([^/]+)$/)?.[1]
   const isForm = Boolean(routeId)
 
   const [promotions, setPromotions] = useState<Promotion[]>([])
@@ -60,13 +61,13 @@ export default function PromotionsPanel() {
     return () => controller.abort()
   }, [isForm])
 
-  if (isForm) return <PromotionForm />
+  if (isForm) return <PromotionForm pathname={pathname} />
 
   return (
     <main className="admin-promotions">
       <h1>Promociones</h1>
       <p>Administrá descuentos porcentuales asociados a productos.</p>
-      <a className="primary-button" href="/admin/promotions/new">Crear promoción</a>
+      <a className="primary-button" href={uiRoutes.admin.newPromotion}>Crear promoción</a>
       {loadState === 'loading' ? <p role="status">Cargando promociones...</p> : null}
       {loadState === 'error' ? <p role="alert">{error}</p> : null}
       {loadState === 'success' && promotions.length === 0 ? (
@@ -84,7 +85,7 @@ export default function PromotionsPanel() {
               {' · '}
               {promotion.active ? 'Activa' : 'Inactiva'}
               {' '}
-              <a href={`/admin/promotions/${encodeURIComponent(promotion.id)}`}>Editar</a>
+              <a href={`${uiRoutes.admin.promotions}/${encodeURIComponent(promotion.id)}`}>Editar</a>
             </li>
           ))}
         </ul>

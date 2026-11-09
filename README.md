@@ -18,24 +18,43 @@ contrato GraphQL del Core está en
 [`../bgg-shop-core/specs/schema.graphql`](../bgg-shop-core/specs/schema.graphql).
 Los tipos de `src/types/generated/bff-api.d.ts` se generan desde OpenAPI y no
 demuestran que todas las operaciones estén implementadas. El Compose define
-`VITE_API_BASE_URL=http://localhost:5000/api/v1`. Los
-filtros se envían en `snake_case` (`search`, `year_published`, `min_players`,
-`max_players`, `category_id`, `price_min`, `price_max`). La búsqueda por nombre
-o editorial se confirma con Enter o el botón `Buscar`; no se solicita al BFF
-durante la escritura. Compose publica el servidor en
-`http://localhost:3000`.
+`VITE_API_BASE_URL=http://localhost:5000/api/v1`. La página `/catalogo`
+presenta el catálogo completo; la portada conserva una selección acotada. Los
+parámetros visibles del catálogo se escriben en español (`busqueda`, `categoria`,
+`editorial`, `anio`, `jugadores_min`, `jugadores_max`, `precio_min`,
+`precio_max`, `pagina` y `orden=precio-descendente|precio-ascendente`). Los
+enlaces antiguos en inglés siguen restaurando sus filtros y se reemplazan por
+la URL canónica. Ante una clave duplicada se invalida el valor elegido; si
+coexisten el nombre español y el alias inglés, prevalece la clave española
+incluso si es inválida.
+
+La URL del navegador no cambia el contrato del BFF: sus solicitudes siguen
+usando nombres en inglés/snake_case (`search`, `publisher`, `category_name`,
+`year_published`, `min_players`, `max_players`, `price_min`, `price_max`,
+`page`, `page_size`). El orden se aplica en la interfaz. La búsqueda amplia
+por nombre o editorial conserva su comportamiento existente; el selector de
+editorial usa coincidencia exacta. La lista global de editoriales y sus conteos
+se carga de forma independiente del catálogo paginado. Compose publica el
+servidor en `http://localhost:3000`.
+
+Session refresh posts to `${VITE_API_BASE_URL}/auth/refresh` (default
+`http://localhost:5000/api/v1/auth/refresh`) with credentials included. A
+temporary refresh failure preserves the account session and allows an explicit
+permission retry; a stale refresh response cannot overwrite or clear a session
+that changed while the request was pending.
 
 ## Servicios expuestos
 
 | Servicio | Método | Ruta u operación | Request | Response / error |
 | --- | --- | --- | --- | --- |
-| Frontend | `GET` | `/api/v1/products` vía BFF | `search`, `year_published`, `min_players`, `max_players`, `category_id`, `price_min`, `price_max`; solicita `page=1&page_size=100`. | Estados de carga, error, vacío y éxito. |
+| Frontend | `GET` | `/api/v1/products` vía BFF | `search`, `publisher`, `category_name`, `year_published`, `min_players`, `max_players`, `category_id`, `price_min`, `price_max`; solicita `page=1&page_size=100`. | Estados de carga, error, vacío y éxito. |
+| Frontend | `GET` | `/api/v1/product-publishers` vía BFF | Sin parámetros; solicita la lista global completa. | Estado independiente de carga, error, vacío y reintento; cada opción expone el conteo global. |
 | BFF | `GET` | `/api/v1/products?page=1&page_size=20` | Filtros REST del catálogo. | `ProductPage` REST o `400`/`502`. |
 | Core | `POST` | `/graphql/` | No se invoca directamente desde el Frontend; el BFF lo consume. | Respuesta GraphQL o `errors`, según el contrato del Core. |
 
 ### Panel de métricas de ventas (Admin)
 
-La ruta `/admin/sales` está disponible para cuentas staff/superuser y consume
+La ruta `/admin/ventas` está disponible para cuentas staff/superuser y consume
 en paralelo `GET /api/v1/admin/sales-metrics` y
 `GET /api/v1/admin/sales-metrics/categories` del BFF. La primera carga omite
 `from` y `to` para usar el rango predeterminado de 30 días; los filtros de
@@ -73,12 +92,13 @@ el contrato y ejemplos ejecutables, véanse
 
 El Frontend muestra el stock (`quantity`) de cada juego y permite agregar,
 modificar y quitar artículos del carrito (`/carrito`) con el total calculado
-por el BFF. Los órdenes disponibles para el catálogo se resuelven localmente;
-la UI no expone navegación de páginas ni botones de categoría.
+por el BFF. Las categorías y editoriales son filtros de `/catalogo`, no rutas
+independientes. La URL conserva filtros y orden; cambiar un filtro reinicia la
+página del catálogo.
 
 ## Lista de deseos (CU-C06)
 
-La ruta `/wishlist` requiere una sesión autenticada. Desde el detalle de un
+La ruta `/lista-de-deseos` requiere una sesión autenticada. Desde el detalle de un
 juego se puede guardar el producto; si la persona no inició sesión, se abre el
 login existente y se conserva la ruta de detalle para volver después de
 autenticarse. La navegación desde el catálogo incluye el `bgg_id` en la URL del
@@ -101,7 +121,7 @@ manualmente en `src/types/generated/bff-api.d.ts`. El flujo se describe en
 
 El botón **Proceder al Pago** requiere una sesión; si todavía no existe, el
 frontend ofrece iniciar sesión y conserva el destino de checkout. La ruta
-`/checkout` captura la modalidad de entrega (`standard` o `pickup`) y valida en
+`/finalizar-compra` captura la modalidad de entrega (`standard` o `pickup`) y valida en
 el cliente los datos obligatorios de envío estándar. Envía `POST /api/v1/checkout` con el bearer token de sesión y redirige el navegador a
 `init_point`; no contiene ni almacena credenciales de Mercado Pago.
 

@@ -2,8 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
 
-const loginPath = '/login';
-const registerPath = '/register';
+const loginPath = '/iniciar-sesion';
+const registerPath = '/registro';
 
 function visit(pathname: string) {
   window.history.pushState({}, '', pathname);
@@ -15,7 +15,9 @@ describe('authentication screens', () => {
     sessionStorage.clear();
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
-      const payload = url.includes('/products')
+      const payload = url.includes('/product-publishers')
+        ? []
+        : url.includes('/products')
         ? { items: [], page: 1, page_size: 100, total: 0, total_pages: 0 }
         : {
           user: { id: '1', email: 'player@example.test', first_name: 'Test', last_name: 'Player', is_active: true },
@@ -41,6 +43,15 @@ describe('authentication screens', () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Correo electrónico')).toBeInTheDocument();
     expect(screen.getByLabelText('Contraseña')).toBeInTheDocument();
+  });
+
+  it('keeps the legacy login URL as a canonicalizing alias', () => {
+    visit('/login?next=%2Fwishlist#form');
+    render(<App />);
+
+    expect(screen.getByRole('heading', { name: 'Te damos la bienvenida' })).toBeInTheDocument();
+    expect(window.location.pathname + window.location.search + window.location.hash)
+      .toBe('/iniciar-sesion?next=%2Fwishlist#form');
   });
 
   it('renders the registration fields at the register pathname', () => {
@@ -175,12 +186,14 @@ describe('authentication screens', () => {
       ? new Response(null, { status: 502 })
       : String(input).includes('/product-categories')
         ? new Response(JSON.stringify([]), { status: 200 })
+        : String(input).includes('/product-publishers')
+          ? new Response(JSON.stringify([]), { status: 200 })
         : new Response(JSON.stringify({ items: [], total: 0, total_pages: 0 }), { status: 200 }));
     visit('/');
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cerrar sesión');
+    expect(await screen.findByText(/No se pudo cerrar sesión/)).toBeInTheDocument();
     expect(sessionStorage.getItem('bgg-shop.session')).not.toBeNull();
   });
 

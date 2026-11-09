@@ -25,7 +25,7 @@ test.describe('Mercado Pago Checkout Sandbox', () => {
     await page.click('button[type="submit"]')
 
     // Navigate to checkout
-    await page.goto(`${BASE_URL}/checkout`)
+    await page.goto(`${BASE_URL}/finalizar-compra`)
 
     // Fill shipping info
     await page.fill('#shipping-recipient', 'Test Recipient')

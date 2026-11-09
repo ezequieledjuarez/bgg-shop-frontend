@@ -45,7 +45,7 @@ beforeEach(() => {
   requests.length = 0
   responsePage = firstPage
   sessionStorage.setItem('bgg-shop.session', JSON.stringify({ access_token: 'admin-token' }))
-  window.history.replaceState({}, '', '/admin/audit')
+  window.history.replaceState({}, '', '/admin/auditoria')
 })
 afterEach(() => {
   server.resetHandlers()
@@ -55,7 +55,7 @@ afterAll(() => server.close())
 
 describe('AuditPanel', () => {
   it('loads the audit route and requests the contract default page size', async () => {
-    const { unmount } = render(<AdminRouter path="/admin/audit" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
+    const { unmount } = render(<AdminRouter path="/admin/auditoria" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
 
     expect(await screen.findByRole('heading', { name: 'Historial de auditoría' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Registros de auditoría' })).toBeInTheDocument()
@@ -68,7 +68,7 @@ describe('AuditPanel', () => {
     render(<AdminRouter path="/admin" capabilities={{ is_staff: true, is_superuser: true }} onNavigate={() => undefined} />)
     expect(screen.getByRole('navigation', { name: 'Navegación de administración' })).toBeInTheDocument()
     expect(within(screen.getByRole('navigation', { name: 'Navegación de administración' }))
-      .getByRole('link', { name: 'Historial de auditoría' })).toHaveAttribute('href', '/admin/audit')
+      .getByRole('link', { name: 'Historial de auditoría' })).toHaveAttribute('href', '/admin/auditoria')
 
     requests.length = 0
     render(<AuditPanel />)

@@ -23,7 +23,7 @@ function safeUser(user: Record<string, unknown>) {
 }
 
 async function login(page: Page, baseURL: string, role: string) {
-  await page.goto(`${baseURL}/login`)
+  await page.goto(`${baseURL}/iniciar-sesion`)
   await page.getByLabel('Correo electrónico', { exact: true }).fill(email(role))
   await page.getByLabel('Contraseña', { exact: true }).fill(password)
   const pending = page.waitForResponse(response =>
@@ -70,7 +70,7 @@ test('active non-staff Superadmin changes independent flags without exposing cre
   expect(caller).toMatchObject({ is_active: true, is_staff: false, is_superuser: true })
   const target = initial.find(user => user.email === email('target'))
   expect(target).toMatchObject({ is_staff: false, is_superuser: false })
-  await page.goto(`${baseURL}/admin/users`)
+  await page.goto(`${baseURL}/admin/usuarios`)
   await expect(page.getByRole('table', { name: 'Usuarios', exact: true })).toBeVisible()
   await page.getByLabel('Buscar usuarios', { exact: true }).fill(email('target'))
   const search = page.waitForResponse(response =>
@@ -112,14 +112,14 @@ test('staff receives REST 403, sees no personnel data, and retains an operations
   expect(Object.keys(await response.json())).toEqual(['error'])
   const denied = page.waitForResponse(result =>
     result.url().endsWith('/api/v1/admin/users') && result.request().method() === 'GET')
-  await page.goto(`${baseURL}/admin/users`)
+  await page.goto(`${baseURL}/admin/usuarios`)
   expect((await denied).status()).toBe(403)
   await expect(page.getByRole('alert')).toContainText('No tenés autorización')
   await expect(page.getByRole('table', { name: 'Usuarios', exact: true })).toHaveCount(0)
   await expect(page.getByRole('checkbox')).toHaveCount(0)
   expect((await page.locator('body').innerText()).includes(email('target'))).toBe(false)
   expect((await page.locator('body').innerText()).includes(email('superadmin'))).toBe(false)
-  await page.goto(`${baseURL}/admin/gift-cards`)
+  await page.goto(`${baseURL}/admin/tarjetas-de-regalo`)
   await expect(page.getByRole('heading', { name: 'Generar gift card', exact: true })).toBeVisible()
   await expect(page.getByLabel('Importe (ARS)', { exact: true })).toBeVisible()
   // Invalid input checks the existing operational guard without issuing a card.
