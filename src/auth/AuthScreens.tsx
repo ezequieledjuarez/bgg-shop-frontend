@@ -17,8 +17,8 @@ const initialValues = {
   confirmPassword: '',
 };
 
-const registrationPasswordHelper = 'Usá entre 8 y 128 caracteres e incluí una mayúscula, una minúscula, un número y un símbolo ASCII imprimible (A-Z, a-z y 0-9; los espacios en blanco no cuentan como símbolo).';
-const registrationPasswordError = 'La contraseña debe tener entre 8 y 128 caracteres e incluir una mayúscula, una minúscula, un número y un símbolo ASCII imprimible (A-Z, a-z y 0-9; los espacios en blanco no cuentan como símbolo).';
+const registrationPasswordHelper = 'Usá entre 8 y 16 caracteres e incluí una mayúscula, una minúscula, un número y un símbolo ASCII imprimible (A-Z, a-z y 0-9; los espacios en blanco no cuentan como símbolo).';
+const registrationPasswordError = 'La contraseña debe tener entre 8 y 16 caracteres e incluir una mayúscula, una minúscula, un número y un símbolo ASCII imprimible (A-Z, a-z y 0-9; los espacios en blanco no cuentan como símbolo).';
 const registrationPasswordPattern = /^(?=[\s\S]*[A-Z])(?=[\s\S]*[a-z])(?=[\s\S]*[0-9])(?=[\s\S]*[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E])[\s\S]*$/;
 
 function navigate(path: string) {
