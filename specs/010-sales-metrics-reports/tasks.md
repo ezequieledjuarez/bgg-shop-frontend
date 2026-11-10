@@ -1,6 +1,6 @@
 # Tasks (Frontend): CU-A02 — Sales Metrics & Reports
 
-Plan and rules: `../../specs/010-sales-metrics-reports/plan.md`. Global ledger: `../../specs/010-sales-metrics-reports/tasks.md`.
+Plan and rules: `../../../specs/010-sales-metrics-reports/plan.md`. Global ledger: `../../../specs/010-sales-metrics-reports/tasks.md`.
 Branch: `010-sales-metrics-reports`. Local validation only. Consume only BFF endpoints; no chart library.
 
 - [x] F-1 After the BFF contract (X-4) is approved, run `npm run generate:types` and keep the regenerated `src/types/generated/bff-api.d.ts`; never hand-edit it.
