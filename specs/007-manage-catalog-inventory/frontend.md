@@ -1,6 +1,6 @@
 # CU-A01 — Frontend Responsibilities (React)
 
-Reference: ../007-manage-catalog-inventory/spec.md
+Reference: ../../../specs/006-manage-catalog-inventory/spec.md
 
 ## Purpose
 Construir la interfaz administrativa para que los Administradores gestionen catálogo, inventario y promociones, y asegurar que la experiencia muestre estados claros, validaciones y feedback de errores.
