@@ -7,8 +7,36 @@ export function authenticationErrorMessage(code?: string) {
     case 'EMAIL_EXISTS':
     case 'UNIQUE':
       return 'Ya existe una cuenta con ese correo electrónico.'
+    case 'EMAIL_NOT_VERIFIED':
+      return 'Verificá tu correo electrónico antes de iniciar sesión.'
     default:
       return 'No se pudo completar la autenticación. Intentá nuevamente.'
+  }
+}
+
+type VerificationResult =
+  | { kind: 'ok' }
+  | { kind: 'invalid' }
+  | { kind: 'throttled'; retryAfterSeconds: number }
+  | { kind: 'unavailable' }
+  | { kind: 'failed' }
+
+export function verificationMessage(action: 'confirm' | 'resend', result: VerificationResult) {
+  switch (result.kind) {
+    case 'ok':
+      return action === 'confirm'
+        ? 'Tu correo fue verificado. Ya podés iniciar sesión.'
+        : 'Si la cuenta está pendiente de verificación, te enviamos un nuevo enlace.'
+    case 'invalid':
+      return action === 'confirm'
+        ? 'Este enlace de verificación no es válido o venció. Pedí uno nuevo.'
+        : 'Ingresá un correo electrónico válido.'
+    case 'throttled':
+      return `Hiciste demasiados intentos. Esperá ${result.retryAfterSeconds} segundos e intentá nuevamente.`
+    case 'unavailable':
+      return 'La verificación no está disponible por ahora. Intentá más tarde.'
+    default:
+      return 'No se pudo completar la solicitud. Intentá nuevamente.'
   }
 }
 
