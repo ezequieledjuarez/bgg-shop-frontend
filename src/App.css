@@ -94,6 +94,10 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #e4a56e; ou
 .spark-one { right: 12%; top: 10%; }.spark-two { bottom: 8%; left: 18%; }
 .section-heading { align-items: end; display: flex; justify-content: space-between; margin-bottom: 22px; }
 .section-heading h2, .editorial-banner h2 { color: #4d372b; font-size: clamp(1.8rem, 3vw, 2.8rem); }
+.discovery-links { display: flex; flex-wrap: wrap; gap: 12px; margin: -4px 0 24px; }
+.discovery-links a { background: #fff; border: 1px solid #d8cdc0; border-radius: 999px; color: #70412f; font-weight: 700; padding: 8px 14px; text-decoration: none; transition: background-color .15s ease, border-color .15s ease, color .15s ease; }
+.discovery-links a:hover { background: #f7f1e8; border-color: #a45132; color: #8f432e; }
+.discovery-links a:focus-visible { outline: 3px solid #a45132; outline-offset: 3px; }
 .filter-panel { background: #fff; border: 1px solid #e8e0d5; border-radius: 16px; margin-bottom: 26px; padding: 20px; }
 .filter-row { display: grid; gap: 14px; grid-template-columns: repeat(3, 1fr); }
 .filter-row label:first-child { grid-column: span 3; }
@@ -206,6 +210,9 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #e4a56e; ou
 .auth-submit:disabled { cursor: wait; opacity: .7; }
 .auth-success { padding: 1rem; border-left: 4px solid #6f8a55; background: #edf2e6; color: #3f542d; }
 .auth-success p { margin: .4rem 0 0; }
+.auth-success button { background: #a45132; border: 0; border-radius: 8px; color: #fff; font-weight: 700; padding: 10px 16px; }
+.auth-success button:hover { background: #8f432e; }
+.auth-success button:focus-visible { outline: 3px solid #a45132; outline-offset: 3px; }
 .auth-switch { margin: 1.5rem 0 0; color: #76594e; text-align: center; }
 .auth-switch button { text-decoration: underline; }
 
