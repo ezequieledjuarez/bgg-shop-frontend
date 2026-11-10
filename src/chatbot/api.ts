@@ -1,4 +1,5 @@
 import type { components, operations } from '../types/generated/bff-api'
+import { authFetch } from '../lib/api'
 
 type ConversationResponse =
   operations['createChatConversation']['responses'][201]['content']['application/json']
@@ -60,7 +61,7 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 export async function createConversation(signal?: AbortSignal): Promise<ConversationResponse> {
-  const response = await fetch(`${apiBaseUrl}/chat/conversations`, {
+  const response = await authFetch(`${apiBaseUrl}/chat/conversations`, {
     method: 'POST',
     credentials: 'include',
     headers: { Accept: 'application/json' },
@@ -82,7 +83,7 @@ export async function getConversation(
   conversationId: string,
   signal?: AbortSignal,
 ): Promise<StoredConversationResponse> {
-  const response = await fetch(
+  const response = await authFetch(
     `${apiBaseUrl}/chat/conversations/${encodeURIComponent(conversationId)}`,
     {
       method: 'GET',
@@ -109,7 +110,7 @@ export async function sendMessage(
   request: MessageRequest,
   signal?: AbortSignal,
 ): Promise<MessageResponse> {
-  const response = await fetch(
+  const response = await authFetch(
     `${apiBaseUrl}/chat/conversations/${encodeURIComponent(conversationId)}/messages`,
     {
       method: 'POST',

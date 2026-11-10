@@ -141,18 +141,25 @@ El alcance, los contratos y las limitaciones verificadas están documentados en
 
 ## Chatbot CU-C07 (en progreso)
 
-El Frontend no incluye interfaz ni flujo de chatbot. El archivo generado
-`src/types/generated/bff-api.d.ts` incluye tipos de operaciones descritas en
-OpenAPI; eso no implica que haya integración funcional. La especificación
-aprobada requiere una futura recuperación con ChromaDB; no hay evidencia de
-que ChromaDB, retrieval o un modelo estén disponibles en ejecución. La FAQ
+El Frontend incluye la interfaz del chatbot y consume las rutas de conversación
+descritas por OpenAPI. Las solicitudes autenticadas envían el bearer token de la
+sesión; las solicitudes anónimas no lo envían. El BFF/Core siguen siendo
+responsables de validar la identidad y autorizar cada conversación. La
+referencia autenticada se guarda en `sessionStorage`, separada por el `sub` del
+JWT solo como ayuda de interfaz y aislada por pestaña; nunca se usa para
+autorizar acceso. La referencia anónima sigue en `localStorage`, pero no se
+adopta al iniciar sesión y se elimina al cambiar de identidad. Las respuestas
+pendientes de una identidad anterior se descartan.
+
+El OpenAPI del BFF conserva las rutas del chatbot como planificadas. La
+especificación aprobada requiere recuperación con ChromaDB; no hay evidencia
+de que ChromaDB, retrieval o un modelo estén disponibles en ejecución. La FAQ
 aprobada tampoco está conectada al cliente.
 
 Estado y requisito: [`../specs/013-add-chatbot/spec.md`](../specs/013-add-chatbot/spec.md),
 [`../specs/013-add-chatbot/plan.md`](../specs/013-add-chatbot/plan.md) y
-[`../odd/tasks/013-add-chatbot.md`](../odd/tasks/013-add-chatbot.md).
-El OpenAPI del BFF mantiene las rutas del chatbot como planificadas. No hay
-pruebas de interfaz o end-to-end del chatbot.
+[`../odd/tasks/013-add-chatbot.md`](../odd/tasks/013-add-chatbot.md). Las
+pruebas locales de interfaz y autenticación están en `src/chatbot/`.
 
 ## Verificación de correo
 
