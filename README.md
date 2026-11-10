@@ -154,6 +154,19 @@ Estado y requisito: [`../specs/013-add-chatbot/spec.md`](../specs/013-add-chatbo
 El OpenAPI del BFF mantiene las rutas del chatbot como planificadas. No hay
 pruebas de interfaz o end-to-end del chatbot.
 
+## Verificación de correo
+
+El registro muestra un estado pendiente (sin redirección ni sesión) con
+reenvío; el login de una cuenta pendiente recibe `403` y se ofrece el reenvío.
+La ruta `/verify-email#token=…` captura el token en memoria y limpia el
+fragmento del historial antes de importar el resto de la aplicación; la
+confirmación es un POST explícito desde un botón, nunca al cargar la página, y
+no inicia sesión. Pruebas con Vite sin leer `.env`:
+
+```bash
+cd bgg-shop-frontend && ./node_modules/.bin/vitest run --config vitest.email-verification.config.ts src/auth && ./node_modules/.bin/tsc -b
+```
+
 ## Desarrollo local
 
 Prerequisito: Node.js 20 (la imagen del Frontend usa `node:20-alpine`). Para

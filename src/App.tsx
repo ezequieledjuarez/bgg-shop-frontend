@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { LoginScreen, RegisterScreen } from './auth/AuthScreens';
+import { EmailVerificationScreen } from './auth/EmailVerificationScreen';
 import { ADMIN_AUTHORIZATION_DENIED_EVENT, SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './auth/session';
 import {
   AdminCapabilitiesError,
@@ -1191,6 +1192,7 @@ function App() {
 
   if (pathname === uiRoutes.login) return <LoginScreen onBack={() => navigate('/')} />
   if (pathname === uiRoutes.register) return <RegisterScreen onBack={() => navigate('/')} />
+  if (pathname === uiRoutes.verifyEmail) return <EmailVerificationScreen onBack={() => navigate('/')} />
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
     if (!accessToken) return <LoginScreen onBack={() => navigate('/')} />
     if (capabilityState.status === 'idle' || capabilityState.status === 'loading') {

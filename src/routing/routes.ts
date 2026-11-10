@@ -1,6 +1,7 @@
 export const uiRoutes = {
   login: '/iniciar-sesion',
   register: '/registro',
+  verifyEmail: '/verify-email',
   wishlist: '/lista-de-deseos',
   checkout: '/finalizar-compra',
   admin: {

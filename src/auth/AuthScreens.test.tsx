@@ -70,6 +70,7 @@ describe('authentication screens', () => {
     expect(
       screen.getByLabelText('Confirmar contraseña'),
     ).toBeInTheDocument();
+    expect(screen.getByText(/mayúscula.*minúscula.*número.*símbolo/)).toBeInTheDocument();
   });
 
   it('uses required and email validation before submitting an empty or invalid login form', async () => {
@@ -98,11 +99,11 @@ describe('authentication screens', () => {
     fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
     fireEvent.change(
       screen.getByLabelText('Contraseña'),
-      { target: { value: 'first-password' } },
+      { target: { value: 'First-Pass1!' } },
     );
     fireEvent.change(
       screen.getByLabelText('Confirmar contraseña'),
-      { target: { value: 'different-password' } },
+      { target: { value: 'Other-Pass1!' } },
     );
     fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
@@ -120,11 +121,11 @@ describe('authentication screens', () => {
     fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
     fireEvent.change(
       screen.getByLabelText('Contraseña'),
-      { target: { value: 'same-password' } },
+      { target: { value: 'Boardgame-Test-123!' } },
     );
     fireEvent.change(
       screen.getByLabelText('Confirmar contraseña'),
-      { target: { value: 'same-password' } },
+      { target: { value: 'Boardgame-Test-123!' } },
     );
     fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
@@ -133,6 +134,81 @@ describe('authentication screens', () => {
       expect.stringContaining('/auth/register'),
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('rejects registration passwords without each required ASCII category accessibly', () => {
+    visit(registerPath);
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Test' } });
+    fireEvent.change(screen.getByLabelText('Apellido'), { target: { value: 'Player' } });
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
+    const password = screen.getByLabelText('Contraseña');
+    fireEvent.change(password, { target: { value: 'Abcdefg1 ' } });
+    fireEvent.change(screen.getByLabelText('Confirmar contraseña'), { target: { value: 'Abcdefg1 ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(password).toBeInvalid();
+    expect(password).toHaveAccessibleDescription(/mayúscula.*minúscula.*número.*símbolo/);
+    expect(screen.getByRole('alert')).toHaveTextContent(/mayúscula.*minúscula.*número.*símbolo/);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+      expect.stringContaining('/auth/register'),
+      expect.anything(),
+    );
+  });
+
+  it.each([
+    ['shorter than the existing minimum', 'Abc1!xy'],
+    ['longer than the existing maximum', `Aa0!${'x'.repeat(125)}`],
+  ])('keeps the existing registration length bound when the password is %s', (_case, value) => {
+    visit(registerPath);
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Test' } });
+    fireEvent.change(screen.getByLabelText('Apellido'), { target: { value: 'Player' } });
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value } });
+    fireEvent.change(screen.getByLabelText('Confirmar contraseña'), { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(screen.getByLabelText('Contraseña')).toBeInvalid();
+    expect(screen.getByRole('alert')).toHaveTextContent(/8 y 128 caracteres/);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+      expect.stringContaining('/auth/register'),
+      expect.anything(),
+    );
+  });
+
+  it('shows the pending verification state after registration without redirecting or signing in', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    visit(registerPath);
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Test' } });
+    fireEvent.change(screen.getByLabelText('Apellido'), { target: { value: 'Player' } });
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'Boardgame-Test-123!' } });
+    fireEvent.change(screen.getByLabelText('Confirmar contraseña'), { target: { value: 'Boardgame-Test-123!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(await screen.findByText(/pendiente de verificación/)).toBeInTheDocument();
+    vi.advanceTimersByTime(5000);
+    expect(window.location.pathname).toBe(registerPath);
+    expect(sessionStorage.getItem('bgg-shop.session')).toBeNull();
+    expect(screen.getByLabelText('Correo para reenviar la verificación')).toHaveValue('player@example.test');
+    vi.useRealTimers();
+  });
+
+  it('guides unverified accounts to resend verification and stores no session', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      errors: [{ code: 'EMAIL_NOT_VERIFIED', message: 'x' }],
+    }), { status: 403 }))));
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'player@example.test' } });
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'same-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
+
+    expect(await screen.findByText('Verificá tu correo electrónico antes de iniciar sesión.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reenviar correo de verificación' })).toBeInTheDocument();
+    expect(sessionStorage.getItem('bgg-shop.session')).toBeNull();
   });
 
   it('shows the catalog-style account link for visitors', () => {

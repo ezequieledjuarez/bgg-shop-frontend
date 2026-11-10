@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { SESSION_CHANGE_EVENT, SESSION_STORAGE_KEY } from './session';
 import { authenticationErrorMessage } from '../ui/messages';
 import { uiRoutes } from '../routing/routes'
+import { ResendVerificationForm } from './EmailVerificationScreen';
 
 type AuthMode = 'login' | 'register';
 
@@ -15,6 +16,10 @@ const initialValues = {
   password: '',
   confirmPassword: '',
 };
+
+const registrationPasswordHelper = 'Usá entre 8 y 128 caracteres e incluí una mayúscula, una minúscula, un número y un símbolo ASCII imprimible (A-Z, a-z y 0-9; los espacios en blanco no cuentan como símbolo).';
+const registrationPasswordError = 'La contraseña debe tener entre 8 y 128 caracteres e incluir una mayúscula, una minúscula, un número y un símbolo ASCII imprimible (A-Z, a-z y 0-9; los espacios en blanco no cuentan como símbolo).';
+const registrationPasswordPattern = /^(?=[\s\S]*[A-Z])(?=[\s\S]*[a-z])(?=[\s\S]*[0-9])(?=[\s\S]*[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E])[\s\S]*$/;
 
 function navigate(path: string) {
   window.history.pushState({}, '', path);
@@ -31,6 +36,11 @@ function validate(mode: AuthMode, values: typeof initialValues): FormErrors {
   if (!values.email.trim()) errors.email = 'Ingresá tu correo electrónico.';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) errors.email = 'Ingresá un correo electrónico válido.';
   if (!values.password) errors.password = 'Ingresá tu contraseña.';
+  else if (mode === 'register') {
+    const passwordLength = Array.from(values.password).length;
+    if (passwordLength < 8 || passwordLength > 128) errors.password = registrationPasswordError;
+    else if (!registrationPasswordPattern.test(values.password)) errors.password = registrationPasswordError;
+  }
   if (mode === 'register' && !values.confirmPassword) {
     errors.confirmPassword = 'Confirmá tu contraseña.';
   } else if (mode === 'register' && values.password !== values.confirmPassword) {
@@ -47,6 +57,7 @@ function Field({
   value,
   onChange,
   error,
+  helperText,
   autoComplete,
 }: {
   id: string;
@@ -55,9 +66,12 @@ function Field({
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  helperText?: string;
   autoComplete: string;
 }) {
   const errorId = `${id}-error`;
+  const helperId = `${id}-helper`;
+  const descriptionIds = [helperText ? helperId : '', error ? errorId : ''].filter(Boolean).join(' ');
   return (
     <div className="auth-field">
       <label htmlFor={id}>{label}</label>
@@ -69,9 +83,10 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         autoComplete={autoComplete}
         aria-invalid={Boolean(error)}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={descriptionIds || undefined}
         required
       />
+      {helperText && <p id={helperId}>{helperText}</p>}
       {error && <p className="auth-field-error" id={errorId} role="alert">{error}</p>}
     </div>
   );
@@ -82,17 +97,14 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const submitTimer = useRef<number | undefined>(undefined);
-
-  useEffect(() => () => {
-    if (submitTimer.current !== undefined) window.clearTimeout(submitTimer.current);
-  }, []);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   const isRegister = mode === 'register';
   const update = (key: keyof typeof initialValues) => (value: string) => {
     setValues((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: '' }));
     setSubmitted(false);
+    setNeedsVerification(false);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -126,10 +138,13 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
         errors?: Array<{ field?: string[] | null; code?: string; message?: string }>;
       };
       if (!response.ok) {
+        setNeedsVerification(!isRegister && payload.errors?.[0]?.code === 'EMAIL_NOT_VERIFIED');
         const nextErrors: FormErrors = {};
         for (const error of payload.errors ?? []) {
           const field = error.field?.[0];
-          if (field) nextErrors[field] = authenticationErrorMessage(error.code);
+          if (field) nextErrors[field] = isRegister && field === 'password'
+            ? registrationPasswordError
+            : authenticationErrorMessage(error.code);
         }
         setErrors(Object.keys(nextErrors).length
           ? nextErrors
@@ -138,7 +153,6 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
       }
       if (isRegister) {
         setSubmitted(true);
-        submitTimer.current = window.setTimeout(() => navigate(uiRoutes.login), 900);
       } else if (payload.session?.access_token) {
         sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload.session));
         window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
@@ -165,8 +179,10 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
 
         {submitted ? (
           <div className="auth-success" role="status">
-            <strong>{isRegister ? 'Recibimos los datos de tu cuenta.' : 'Recibimos tus datos de inicio de sesión.'}</strong>
-            <p>{isRegister ? 'Tu cuenta fue creada. Te estamos redirigiendo al inicio de sesión…' : 'Te estamos redirigiendo al catálogo…'}</p>
+            <strong>Recibimos los datos de tu cuenta.</strong>
+            <p>Tu cuenta fue creada y está pendiente de verificación. Revisá tu correo y abrí el enlace para activarla antes de iniciar sesión.</p>
+            <ResendVerificationForm initialEmail={values.email.trim()} />
+            <p><button type="button" onClick={() => navigate(uiRoutes.login)}>Ir a iniciar sesión</button></p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate>
@@ -178,12 +194,18 @@ function AuthScreen({ mode, onBack }: { mode: AuthMode; onBack: () => void }) {
               </div>
             )}
             <Field id="email" label="Correo electrónico" type="email" value={values.email} onChange={update('email')} error={errors.email} autoComplete="email" />
-            <Field id="password" label="Contraseña" type="password" value={values.password} onChange={update('password')} error={errors.password} autoComplete={isRegister ? 'new-password' : 'current-password'} />
+            <Field id="password" label="Contraseña" type="password" value={values.password} onChange={update('password')} error={errors.password} helperText={isRegister ? registrationPasswordHelper : undefined} autoComplete={isRegister ? 'new-password' : 'current-password'} />
             {isRegister && <Field id="confirmPassword" label="Confirmar contraseña" type="password" value={values.confirmPassword} onChange={update('confirmPassword')} error={errors.confirmPassword} autoComplete="new-password" />}
             <button className="auth-submit" type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Esperá…' : isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
             </button>
           </form>
+        )}
+        {!submitted && needsVerification && (
+          <div role="group" aria-label="Reenviar verificación">
+            <p>Todavía no verificaste tu correo.</p>
+            <ResendVerificationForm initialEmail={values.email.trim()} />
+          </div>
         )}
 
         <p className="auth-switch">

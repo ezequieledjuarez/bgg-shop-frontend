@@ -54,8 +54,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Register a customer account
-         * @description Creates a local customer account using email and password credentials.
+         * Register a pending customer account
+         * @description Creates a local customer account in the PENDING email-verification state without signing in. Core commits the account and its verification challenge together, then submits one verification message after commit. A delivery failure after commit still returns 201 with delivery_status UNCONFIRMED. A duplicate email stays 409 and never implicitly resends. No session, credential or cookie is issued. Every response is non-cacheable.
          */
         post: operations["registerAccount"];
         delete?: never;
@@ -115,9 +115,49 @@ export interface paths {
         put?: never;
         /**
          * Refresh a customer access token
-         * @description Uses the refresh_token cookie or an optional request body token. A nonempty body token takes precedence. On success, a returned refresh token is rotated in an HttpOnly cookie and only the access token is returned in JSON.
+         * @description Uses the refresh_token cookie or an optional request body token. A nonempty body token takes precedence. On success, a returned refresh token is rotated in an HttpOnly cookie and only the access token is returned in JSON. Core validates that the stored subject is still active and either email-verified or a legacy-exempt account before rotating; an ineligible subject is rejected with the same 401 detail shape.
          */
         post: operations["refreshAccessToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/email-verification/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm email ownership with an explicit action
+         * @description Public; no bearer token or operation key is required. The body carries only the verification token (43 base64url characters). All missing, malformed, tampered, unknown, consumed, replaced and expired tokens return the same 400 outcome. At most ten invalid attempts per caller in any rolling 900 seconds; attempt eleven returns 429 and a valid token is not processed until the caller is allowed again. Confirmation never signs the user in. GET and HEAD never confirm and return 405. Every response is non-cacheable and no-referrer. The caller identity is derived server-side from the peer address and is never accepted from the request.
+         */
+        post: operations["confirmEmailVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/email-verification/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request another verification message with a neutral acknowledgment
+         * @description Public; no bearer token or operation key is required. Every well-formed email receives the same 202 body whether the account is pending, verified, legacy-exempt or nonexistent, including recipient suppression and delivery failure. Ten well-formed requests per caller in any rolling 3600 seconds; the eleventh returns 429 independent of membership. Recipient rules are applied inside Core without disclosure: 120 seconds since the latest issuance and at most two replacement issuances per rolling 3600 seconds. A replacement invalidates every older token and an older token is never restored. No automatic retry. Every response is non-cacheable.
+         */
+        post: operations["resendEmailVerification"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1015,6 +1055,35 @@ export interface components {
             /** @description Product BGG ID for product or stock events; promotion ID for promotion events. */
             aggregate_id: string;
         };
+        ConfirmEmailVerificationRequest: {
+            token: string;
+        };
+        ConfirmEmailVerificationResponse: {
+            /** @enum {boolean} */
+            verified: true;
+            message: string;
+        };
+        ResendEmailVerificationRequest: {
+            /** Format: email */
+            email: string;
+        };
+        ResendEmailVerificationResponse: {
+            message: string;
+        };
+        VerificationThrottledResponse: {
+            errors: components["schemas"]["AuthError"][];
+            retry_after_seconds: number;
+        };
+        RegistrationVerification: {
+            /** @enum {string} */
+            state: "PENDING";
+            /**
+             * @description SUBMITTED means the transport accepted the message, not inbox delivery.
+             * @enum {string}
+             */
+            delivery_status: "SUBMITTED" | "UNCONFIRMED";
+            message: string;
+        };
         AuthRefreshRequest: {
             refresh_token?: string;
         };
@@ -1164,7 +1233,10 @@ export interface components {
         RegisterRequest: {
             /** Format: email */
             email: string;
-            /** Format: password */
+            /**
+             * Format: password
+             * @description Must include at least one ASCII uppercase letter, ASCII lowercase letter, ASCII digit, and printable ASCII punctuation character (not whitespace).
+             */
             password: string;
             first_name: string;
             last_name: string;
@@ -1219,6 +1291,7 @@ export interface components {
             email: string;
             first_name: string;
             last_name: string;
+            /** @description Administrative activation only; true does not imply mailbox verification. */
             is_active: boolean;
         };
         OperationSession: {
@@ -1259,7 +1332,7 @@ export interface components {
         };
         RegisterResponse: {
             user: components["schemas"]["AuthUser"];
-            session?: components["schemas"]["AuthSession"];
+            verification: components["schemas"]["RegistrationVerification"];
         };
         LoginResponse: {
             user: components["schemas"]["AuthUser"];
@@ -1751,6 +1824,80 @@ export interface components {
         };
     };
     responses: {
+        /** @description Only POST is supported; the request has no side effects. */
+        VerificationMethodNotAllowed: {
+            headers: {
+                "Cache-Control": components["headers"]["AuthNoStore"];
+                /** @description Supported methods. */
+                Allow?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AuthErrorResponse"];
+            };
+        };
+        /** @description The caller limit is reached, independent of email membership or token validity. */
+        VerificationThrottled: {
+            headers: {
+                "Cache-Control": components["headers"]["AuthNoStore"];
+                "Retry-After": components["headers"]["RetryAfter"];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "errors": [
+                 *         {
+                 *           "code": "RATE_LIMITED",
+                 *           "message": "Too many attempts. Try again later."
+                 *         }
+                 *       ],
+                 *       "retry_after_seconds": 120
+                 *     }
+                 */
+                "application/json": components["schemas"]["VerificationThrottledResponse"];
+            };
+        };
+        /** @description Core is unreachable or returned an invalid response; the outcome may be unknown and is never retried automatically. */
+        VerificationUpstream: {
+            headers: {
+                "Cache-Control": components["headers"]["AuthNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "errors": [
+                 *         {
+                 *           "code": "UPSTREAM_FAILURE",
+                 *           "message": "The request could not be completed. Try again later."
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["AuthErrorResponse"];
+            };
+        };
+        /** @description Limit or state storage or the trusted caller context is unavailable; fail closed with no send or consume. */
+        VerificationUnavailable: {
+            headers: {
+                "Cache-Control": components["headers"]["AuthNoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "errors": [
+                 *         {
+                 *           "code": "VERIFICATION_UNAVAILABLE",
+                 *           "message": "Verification is temporarily unavailable. Try again later."
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["AuthErrorResponse"];
+            };
+        };
         /** @description The message is blank or exceeds 2,000 characters. The response does not echo submitted content or include internal diagnostics. */
         ChatInvalidRequest: {
             headers: {
@@ -2060,6 +2207,12 @@ export interface components {
     };
     requestBodies: never;
     headers: {
+        /** @description Prevents caching of authentication and verification outcomes. */
+        AuthNoStore: "no-store";
+        /** @description Prevents the verification page from leaking referrers. */
+        NoReferrer: "no-referrer";
+        /** @description Whole seconds, rounded up, until the caller limit permits another attempt. Never reveals recipient quota. */
+        RetryAfter: number;
         /** @description Prevents caching of private chat content and session metadata. */
         ChatNoStore: "no-store";
         /** @description Prevents caching of personnel data and privilege-management responses. */
@@ -2208,27 +2361,46 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Customer account created. */
+            /** @description Pending customer account created; message submission is not proof of delivery. */
             201: {
                 headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "user": {
+                     *         "id": "123",
+                     *         "email": "player@example.test",
+                     *         "first_name": "Test",
+                     *         "last_name": "Player",
+                     *         "is_active": true
+                     *       },
+                     *       "verification": {
+                     *         "state": "PENDING",
+                     *         "delivery_status": "UNCONFIRMED",
+                     *         "message": "Verify your email before signing in. Delivery is not guaranteed; you can request another message."
+                     *       }
+                     *     }
+                     */
                     "application/json": components["schemas"]["RegisterResponse"];
                 };
             };
             /** @description Request body or registration data is invalid. */
             400: {
                 headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AuthErrorResponse"];
                 };
             };
-            /** @description An account with the email already exists. */
+            /** @description An account with the email already exists; no message is resent. */
             409: {
                 headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2238,6 +2410,7 @@ export interface operations {
             /** @description The BFF could not obtain a valid response from the Core GraphQL service. */
             502: {
                 headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2278,24 +2451,47 @@ export interface operations {
             /** @description Request body is invalid. */
             400: {
                 headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AuthErrorResponse"];
                 };
             };
-            /** @description Email or password is invalid. */
+            /** @description Email or password is invalid, or the account is administratively inactive. */
             401: {
                 headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": components["schemas"]["AuthErrorResponse"];
+                };
+            };
+            /** @description The password was valid but the email is not verified yet (EMAIL_NOT_VERIFIED). No token, cookie, operation key or guest-cart merge occurs and the guest cart cookie is retained. */
+            403: {
+                headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "errors": [
+                     *         {
+                     *           "code": "EMAIL_NOT_VERIFIED",
+                     *           "message": "Verify your email before signing in."
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["AuthErrorResponse"];
                 };
             };
             /** @description The BFF could not obtain a valid response from the Core GraphQL service. */
             502: {
                 headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2377,6 +2573,101 @@ export interface operations {
                     "application/json": components["schemas"]["AuthRefreshErrorResponse"];
                 };
             };
+        };
+    };
+    confirmEmailVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "token": "<VERIFICATION_TOKEN>"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ConfirmEmailVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Exactly one account was verified atomically; no credentials or user are returned. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
+                    "Referrer-Policy": components["headers"]["NoReferrer"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmEmailVerificationResponse"];
+                };
+            };
+            /** @description One generic unusable-link outcome with no owner, token or reason detail. */
+            400: {
+                headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
+                    "Referrer-Policy": components["headers"]["NoReferrer"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "errors": [
+                     *         {
+                     *           "code": "INVALID_VERIFICATION_TOKEN",
+                     *           "message": "This link cannot be used. Sign in or request another verification message."
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["AuthErrorResponse"];
+                };
+            };
+            405: components["responses"]["VerificationMethodNotAllowed"];
+            429: components["responses"]["VerificationThrottled"];
+            502: components["responses"]["VerificationUpstream"];
+            503: components["responses"]["VerificationUnavailable"];
+        };
+    };
+    resendEmailVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendEmailVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Request acknowledged; not a claim about account existence or delivery. */
+            202: {
+                headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResendEmailVerificationResponse"];
+                };
+            };
+            /** @description The email is malformed; the submitted value is not echoed. */
+            400: {
+                headers: {
+                    "Cache-Control": components["headers"]["AuthNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthErrorResponse"];
+                };
+            };
+            405: components["responses"]["VerificationMethodNotAllowed"];
+            429: components["responses"]["VerificationThrottled"];
+            502: components["responses"]["VerificationUpstream"];
+            503: components["responses"]["VerificationUnavailable"];
         };
     };
     listProductCategories: {
